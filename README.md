@@ -1,3 +1,21 @@
+# Tasks
+
+## Matt
+- [ ] Refactor PCA_ISR logic for reading flags along with any functions previously using count method
+- [ ] Clean existing wiring 
+- [ ] Refactor Car_Parameters into Starting_Parameters
+- [ ] Recheck ADC function to ensure it is working properly
+
+## Sydney
+- [ ] Wire accelerometer, buzzer, and additional slide switch.
+- [ ] Refactor Print_Data
+- [ ] Modify Set_Motor_PWM
+
+## Tom
+- [ ] Determine main loop logic
+- [ ] Modify Set_Servo_PWM
+- [ ] Pseudocode
+
 # Lab_5
 LITEC Lab 5
 
@@ -10,7 +28,7 @@ LITEC Lab 5
 4. An additional slide switch; the two slide switches will each individually control run/stop of the two control algorithms (Drive and Servo).
 
 ### Software
-1. Call the Accel_Init_C function from i2c.h file and write a read_accel function.
+1. Call the Accel_Init_C function from i2c.h file and write a Read_Accel function.
 2. Need to modify Set_Servo_PWM that is based off the accelerometer reading.
 3. Steering should be set such that the car will turn in the direction of the upward slope.
 4. Motor_PW is set using both side-to-side (+x to the left) and front-to-back (+y to the front) tilt.
@@ -45,7 +63,7 @@ Where ks is the Servo gain, and kdy and kdx are the drive motor gains.
 2. Keypad should not be queried for a read faster than every few ms.
 3. It is necessary to try several gain values for optimal performance. Noise with the accelerometer is unpleasant and may cause jerky steering.
 4. Be sure to maintain cases that prevent PW's from going outside their ranges.
-5. I2C address of the accelerometer is 0x3A. Point registers 0x28 and 0x29 contain the 12-bit x-axis acceleration and registers 0x2A and 0x2B the y-axis acceleration after 2 LS bits of 0x27 go high. Low byte is in lower register number. Discard low byte because of noise. Sign-extend the high byte for a 16-bit signed int; equivalent 12-bit value is in highest bits. Shift into 12 lowest bits.
+5. I2C address of the accelerometer is 0x3A (ACCEL_ADDR). Point registers 0x28 and 0x29 contain the 12-bit x-axis acceleration and registers 0x2A and 0x2B the y-axis acceleration after 2 LS bits of 0x27 go high. Low byte is in lower register number. Discard low byte because of noise. Sign-extend the high byte for a 16-bit signed int; equivalent 12-bit value is in highest bits. Shift into 12 lowest bits.
 6. The drive motor displays asymmetrical strength in terms of forward vs. backward travel; it may be wise to have separate gains for both (ask staff if we even need to run forward or just in reverse).
 
 ```
