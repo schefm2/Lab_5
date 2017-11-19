@@ -57,11 +57,12 @@ unsigned char Data[2];  //Data array used to read and write to I2C Bus slaves
 unsigned int desired_heading = 0;
 unsigned int initial_speed = MOTOR_NEUTRAL_PW;
 unsigned int PCA_overflows, current_heading, range, Servo_PW, Motor_PW;
-unsigned char keyboard, keypad, accel_count, print_count, accel_flag, print_flag, answer, first_obstacle;
+unsigned char keyboard, keypad, accel_count, print_count, wait_count, accel_flag, print_flag, answer, first_obstacle;
 signed int heading_error;
 float gain, time; //Time is in tenths of a second
 
 //sbits
+__sbit __at 0xB5 BUZZ;  //P3.5 (pin 34 on EVB connector); buzzer for running up slope
 __sbit __at 0xB6 SS1;   //P3.6 (pin 31 on EVB connector); slideswitch run/stop for Servo
 __sbit __at 0xB7 SS2;   //P3.7 (pin 32 on EVB connector); slideswitch run/stop for Drive Motor
 
@@ -245,22 +246,22 @@ void Set_Motor_PWM(void)
 //Pause
 //----------------------------------------------------------------------------
 void Pause(void)
-{   /*
+{   
 	//Stop for 40 ms
-	r_count = 0;
-	while (r_count < 2){}
-    */
+	wait_count = 0;
+	while (wait_count < 2){}
+    
 }
 
 //----------------------------------------------------------------------------
 //Wait
 //----------------------------------------------------------------------------
 void Wait(void)
-{   /*
+{   
 	//Stop for 1000 ms
-	r_count = 0;
-	while (r_count < 50){}
-    */
+	wait_count = 0;
+	while (wait_count < 50){}
+    
 }
 
 //----------------------------------------------------------------------------
@@ -378,8 +379,8 @@ void ADC_Init(void)
     ADC1CN = 0x80;	//Enables AD/C converter
 
     //Gives capacitors in A/D converter time to charge
-    print_count = 0;
-    while(print_count < 6);
+    wait_count = 0;
+    while(wait_count < 6);
 
     //Sets gain to 1
     ADC1CF |= 0x01;
@@ -390,16 +391,17 @@ void ADC_Init(void)
 //Port_Init
 //-----------------------------------------------------------------------------
 void Port_Init()
-{   /*
+{   
 	//Initailize POT
 	P1MDOUT |= 0x05;	//Set output pin for CEX0 and CEX2 in push-pull mode
 	P1MDOUT &= ~0x80;	//Set potentiometer pin (P1.7) to open drain
 	P1 |= 0x80;			//Set impedance high on P1.7
 	P1MDIN &= ~0x80;	//Set P1.7 to analog input
 	
-	P3MDOUT &= ~0x80; //Pin 3.7 open drain
-	P3 |= 0x80; //Pin 3.7 high impedance
-    */
+	P3MDOUT &= ~0xC0;   //Pin 3.7, 3.8 open drain
+    P3MDOUT |= 0x20;    //Pin 3.5 push/pull
+	P3 |= 0xC0;         //Pin 3.7,3.8 high impedance
+    
 }
 
 //-----------------------------------------------------------------------------
@@ -456,6 +458,7 @@ void PCA_ISR ( void ) __interrupt 9
         PCA0 = 28672;   //determine period to 20 ms
         accel_count++;
 		print_count++;
+        wait_count++;
         if (accel_count >= 2)   //Accelerometer won't read unless 40 ms has passed
         {
             accel_flag = 1;
