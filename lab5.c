@@ -58,6 +58,7 @@ unsigned int desired_heading = 0, x, y, xoffset=0, yoffset=0;
 unsigned int initial_speed = MOTOR_NEUTRAL_PW;
 unsigned int PCA_overflows, current_heading, range, Servo_PW, Motor_PW;
 unsigned char keyboard, keypad, accel_count, print_count, wait_count, accel_flag, print_flag, answer, first_obstacle;
+unsigned char kdx, kdy, ks, ki; //Feedback gains for x-axis of car, y-axis of car, and steering
 signed int heading_error;
 float gain, time; //Time is in tenths of a second
 
@@ -81,8 +82,10 @@ void main(void)
     PCA_Init();
     SMB_Init();
     ADC_Init();	//Must come after PCA_Init to allow capacitors to charge
-    
     printf("\r\nStart.\r\n");
+    
+    Start_Parameters();
+    
     while(1)
     {
 
@@ -92,70 +95,78 @@ void main(void)
 //----------------------------------------------------------------------------
 // Start_Parameters
 //----------------------------------------------------------------------------
+// Allows user to set three gains for the car; the front-to-back gain is set
+// with the pot and the side-to-side gain and steerin gain are set with either
+// the keypad or the keyboard.
 void Start_Parameters(void)
 {
-    /*
-       Allow user to enter initial speed, desired heading, and other parameters.  This can be done by
-       pressing keys on the keyboard or keypad. The system should allow the operator to enter a specific
-       desired angle, or pick from a predefined list of 0°, 90°, 180°, 270°. If the user is to enter a
-       desired angle, the SecureCRT or LCD screen should indicate so with a prompt. If the user is to 
-       choose an angle from a predefined list, the screen should show the list along with the key press 
-       needed to select that angle. The steering gain and drive gain (only for obstacle tracking, not used 
-       here) must also be selectable. 
-       Configure the A/D converter in the C8051 to read a potentiometer voltage. As mentioned previously, 
-       the potentiometer is used to select the gain. This is set once with the other initializations. The
-       final value must be displayed for the user to see, and allowing the user to make adjustments until
-       a desired value is set is a nice feature.
-     */
-	unsigned int temp;	//Used to print gain to the LCD
+	unsigned char temp = 0;	//Used to print cast gain as an int
     Servo_PW = SERVO_CENTER_PW;		//Initialize car to straight steering and no movement
     Motor_PW = MOTOR_NEUTRAL_PW;	//Set pulse to stop car
     PCA0CP0 = 0xFFFF - Servo_PW;	//tell hardware to use new servo pulse width
     PCA0CP2 = 0xFFFF - Motor_PW;	//tell hardware to use new motor pulse width
 
-
-    printf("\nStart");		//print start
-
-    Wait();					//Wait for 1 second
-    lcd_clear();			//clear lcd screen
+    Wait();         //Wait for 1 second
+    lcd_clear();    //clear lcd screen
     lcd_print("Calibration:\nHello world!\n012_345_678:\nabc def ghij");	
-	Wait();		//wait 1 second
+	Wait();         //wait 1 second
 	
 	
 	lcd_clear();
 	lcd_print("Set gain with pot");		//tell user to set gain with potentiometer
-	printf("\r\nTurn the potentiometer clockwise to increase the steering gain from 0 to 10.2.\r\nPress # when you are finished.");
-	calibrate();		//take 5 digit input
-	gain = ((float)read_AD_input(7) / 255) * 10.2; //set gain from pot
-	printf_fast_f("\r\nYour gain is %3.1f", gain); //print gain
-	temp = (unsigned char)(gain/10.2*100);
-	lcd_print("\nGain is %u of 100",temp);
-	Wait(); //wait a second
+	printf("\r\nTurn the potentiometer clockwise to increase the front-to-back gain from 0 to 50.\r\nPress # when you are finished.\r\n");
+    while (parallel_input() != '#')
+    {
+        gain = ((float)read_AD_input(7) / 255) * 50; //set gain from pot
+        temp = gain;    //Cast gain as an unsigned int
+        printf("\rYou set your gain to: %u   ", temp);  //Print selected gain
+        lcd_clear();    //Clear lcd screen
+        lcd_print("Gain is: %u", temp); //Print selected gain to screen
+    }
+    kdy = temp; //Store front-to-back gain
+    printf("\r\nYou selected %u as your front-to-back gain.", kdy);   //Print to confirm final gain
+    lcd_print("\nFinal value above");               //Print to confirm final gain
+    Wait();
+    
 	
 	do
 	{
 		lcd_clear(); //clear screen
-		lcd_print("Press 5 keys.\n"); //print instructions
-		printf("\r\nSelect a desired heading (0 to 3599) by inputing 5 digits. Lead with a 0. Press # to confirm.\r\n");
-		desired_heading = calibrate();	//take 5 digit input
+		lcd_print("Press 5 keys."); //print instructions
+		printf("\r\nSelect a side-to-side gain (0 to 50) by inputing 5 digits. Lead with 0's. Press # to confirm.\r\n");
+		kdx = calibrate();	//take 5 digit input
 		Wait(); //wait a second
 	}
-	while (desired_heading > 3599); //wait until you get appropriate heading
-	printf("\r\nYou selected %u as your heading", desired_heading); //print heading
+	while (kdx > 50); //wait until you get appropriate gain
+	printf("\r\nYou selected %u as your side-to-side gain", kdx); //print side-to-side gain
+    lcd_print("\nFinal value above");  
+    Wait();
 	
 	do
 	{
-		lcd_clear();
-		lcd_print("Press 5 keys.\n");	//print instructions
-		printf("\r\nSelect an initial speed (2765 to 3502) by inputing 5 digits. Lead with a 0. Press # to confirm.\r\n");
-		initial_speed = calibrate(); //take 5 digits 
+		lcd_clear(); //clear screen
+		lcd_print("Press 5 keys."); //print instructions
+		printf("\r\nSelect a steering gain (0 to 50) by inputing 5 digits. Lead with 0's. Press # to confirm.\r\n");
+		ks = calibrate();	//take 5 digit input
 		Wait(); //wait a second
 	}
-	while (initial_speed < 2765 || initial_speed > 3502);  //wait for appropriate speed
-	printf("\r\nYou selected %u as your speed", initial_speed);  //print speed
-	Wait();  //wait a second
-	Motor_PW = initial_speed;
-	PCA0CP2 = 0xFFFF - Motor_PW; //activate motor
+	while (ks > 50); //wait until you get appropriate gain
+	printf("\r\nYou selected %u as your steering gain", ks); //print steering gain
+    lcd_print("\nFinal value above");  
+    Wait();
+    
+    do
+	{
+		lcd_clear(); //clear screen
+		lcd_print("Press 5 keys."); //print instructions
+		printf("\r\nSelect a integral gain (0 to 50) by inputing 5 digits. Lead with 0's. Press # to confirm.\r\n");
+		ki = calibrate();	//take 5 digit input
+		Wait(); //wait a second
+	}
+	while (ki > 50); //wait until you get appropriate gain
+	printf("\r\nYou selected %u as your integral gain", ki); //print integral gain
+    lcd_print("\nFinal value above");  
+    Wait();
 }
 
 //----------------------------------------------------------------------------
