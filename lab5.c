@@ -204,13 +204,12 @@ void Read_Print(void)
 void Print_Data(void)
 {
     if(print_count > 20)
-		//Only prints ever ~400 ms
+		//Only prints every ~400 ms
     {
-		time += print_count/5;	//Ensures accurate time readings
         print_count = 0;
-        printf("\r\n%u,%d,%u,%u", (int)time, heading_error, Servo_PW, range);
+        printf("\r\n%u,%u,%u,%u,%u,%u", xaccel, yaccel, kdx, kdy, ks, Motor_PW);
         lcd_clear();
-        lcd_print("Heading is: %u\nRange is: %u\nServo Cycle: %u\nMotor Cycle: %u", current_heading, range, (int)(((float)Servo_PW/28672)*100), (int)(((float)Motor_PW/28672)*100));
+        lcd_print("x-angle: %u\ny-angle: %u\nGains (x,y,s): %u, %u, %u\nMotor PW: %u", xaccel, yaccel, kdx, kdy, ks, Motor_PW);
     }
 }
 
@@ -236,9 +235,12 @@ void Set_Servo_PWM(void)
 //----------------------------------------------------------------------------
 void Set_Motor_PWM(void)
 {
-	//Motor_PW = MOTOR_NEUTRAL_PW + kdy * y; // kdy is the y-axis drive feedback gain
+	Motor_PW = MOTOR_NEUTRAL_PW+kdy*y; // kdy is the y-axis drive feedback gain
 	//Add correction for side-to-side tilt, forcing a forward movement to turn the car.
-	//Motor_PW += kdx * abs(x); //kdx is the x-axis drive feedback gain
+	Motor_PW += kdx*abs(x); //kdx is the x-axis drive feedback gain
+	
+	//Motor_PW += kdx * abs(xaccel) + ki * error_sum //ki is the integral gain
+	//error_sum += yaccel + abs(xaccel)
 }
 
 //----------------------------------------------------------------------------
