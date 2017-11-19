@@ -225,7 +225,7 @@ void Read_Print(void)
 //Print_Data
 //----------------------------------------------------------------------------
 void Print_Data(void)
-{   /*
+{
     if(print_count > 20)
 		//Only prints every ~400 ms
     {
@@ -234,7 +234,6 @@ void Print_Data(void)
         lcd_clear();
         lcd_print("x-angle: %u\ny-angle: %u\nGains (x,y,s): %u, %u, %u\nMotor PW: %u", xaccel, yaccel, kdx, kdy, ks, Motor_PW);
     }
-    */
 }
 
 //LOW LEVEL FUNCTIONS
@@ -259,9 +258,9 @@ void Set_Servo_PWM(void)
 //----------------------------------------------------------------------------
 void Set_Motor_PWM(void)
 {
-	Motor_PW = MOTOR_NEUTRAL_PW+kdy*y; // kdy is the y-axis drive feedback gain
+	Motor_PW = MOTOR_NEUTRAL_PW+kdy*yaccel; // kdy is the y-axis drive feedback gain
 	//Add correction for side-to-side tilt, forcing a forward movement to turn the car.
-	Motor_PW += kdx*abs(x); //kdx is the x-axis drive feedback gain
+	Motor_PW += kdx*abs(xaccel); //kdx is the x-axis drive feedback gain
 	
 	//Motor_PW += kdx * abs(xaccel) + ki * error_sum //ki is the integral gain
 	//error_sum += yaccel + abs(xaccel)
