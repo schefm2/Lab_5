@@ -54,13 +54,15 @@ unsigned char read_AD_input(unsigned char pin_number);
 // Global Variables
 //-----------------------------------------------------------------------------
 unsigned char Data[5];  //Data array used to read and write to I2C Bus slaves
-unsigned int desired_heading = 0, x, y, xoffset=0, yoffset=0;
+unsigned int xaccel, yaccel, xoffset=0, yoffset=0;
 unsigned int initial_speed = MOTOR_NEUTRAL_PW;
-unsigned int PCA_overflows, current_heading, range, Servo_PW, Motor_PW;
-unsigned char keyboard, keypad, accel_count, print_count, wait_count, accel_flag, print_flag, answer, first_obstacle;
+unsigned int PCA_overflows, Servo_PW, Motor_PW;
 unsigned char kdx, kdy, ks, ki; //Feedback gains for x-axis of car, y-axis of car, and steering
+unsigned char keyboard, keypad, accel_count, print_count, wait_count;
 signed int heading_error;
 float gain, time; //Time is in tenths of a second
+
+__bit servo_stop, motor_stop, accel_flag, print_flag;
 
 //sbits
 __sbit __at 0xB5 BUZZ;  //P3.5 (pin 34 on EVB connector); buzzer for running up slope
@@ -83,12 +85,18 @@ void main(void)
     SMB_Init();
     ADC_Init();	//Must come after PCA_Init to allow capacitors to charge
     printf("\r\nStart.\r\n");
+
     
     Start_Parameters();
     
     while(1)
     {
+        //drive backwards up slope
 
+        //store slope readings if higher than max
+        //max = (accel > max) ? accel : max;
+
+        //stop while accel readings indicate flat ground
     }
 }
 
@@ -189,10 +197,13 @@ void Set_Neutral(void)
     if (SS1)
     {
 		PCA0CP0 = 0xFFFF - SERVO_CENTER_PW;
-		PCA0CP2 = 0xFFFF - MOTOR_NEUTRAL_PW;
-
-        while(SS1) {}	//wait until slideswitch is turned OFF
     }
+    if (SS2)
+    {
+		PCA0CP2 = 0xFFFF - MOTOR_NEUTRAL_PW;
+    }
+    servo_stop = (SS1) ? 1 : 0;
+    motor_stop = (SS2) ? 1 : 0;
 }
 
 //----------------------------------------------------------------------------
@@ -248,9 +259,9 @@ void Set_Servo_PWM(void)
 //----------------------------------------------------------------------------
 void Set_Motor_PWM(void)
 {
-	Motor_PW = MOTOR_NEUTRAL_PW + kdy * y; // kdy is the y-axis drive feedback gain
+	//Motor_PW = MOTOR_NEUTRAL_PW + kdy * y; // kdy is the y-axis drive feedback gain
 	//Add correction for side-to-side tilt, forcing a forward movement to turn the car.
-	Motor_PW += kdx * abs(x); //kdx is the x-axis drive feedback gain
+	//Motor_PW += kdx * abs(x); //kdx is the x-axis drive feedback gain
 }
 
 //----------------------------------------------------------------------------
@@ -470,7 +481,8 @@ void PCA_ISR ( void ) __interrupt 9
         accel_count++;
 		print_count++;
         wait_count++;
-        if (accel_count >= 2)   //Accelerometer won't read unless 40 ms has passed
+
+        if (accel_count >= 1)   //Accelerometer won't read unless 20 ms has passed
         {
             accel_flag = 1;
             accel_count = 0;
@@ -504,21 +516,53 @@ void SMB_Init()
 void Read_Accel()
 {
 	int i=0; //counter variable
-	x=0; //reset x reading
-	y=0; //reset y reading
+	xaccel = 0; //reset x reading
+	yaccel = 0; //reset y reading
 
 	for(i=0;i<8;i++) //loop through 8 iterations
 	{
+		while(!accel_flag);
+		accel_flag=0;
 		i2c_read_data(ACCEL_ADDR, 0x27, Data, 1); //read status registers
 		if((Data[0]&0x03)==0x03) //are the 
 		{
+			while(!accel_flag);
+			accel_flag=0;
 			i2c_read_data(ACCEL_ADDR, 0x28, Data, 4); //read angle registers
-			x +=Data[1]<<8 | Data[0]>>4; //set and total x values
-			y +=Data[4]<<8 | Data[3]>>4; //set and total y values
+			xaccel +=Data[1]<<8 | Data[0]>>4; //set and total x values
+			yaccel +=Data[4]<<8 | Data[3]>>4; //set and total y values
 		}
 	}
-	x = x>>3-xoffset; //average by dividing by 8 and subtract offset
-	y = y>>3-yoffset; //average by dividing by 8 and subtract offset
+	xaccel = xaccel>>3-xoffset; //average by dividing by 8 and subtract offset
+	yaccel = yaccel>>3-yoffset; //average by dividing by 8 and subtract offset
+}
+//-----------------------------------------------------------------------------
+//
+// Calibrate Accelerometer
+//
+void Calibrate_Accel()
+{
+	int i=0; //counter variable
+	xoffset=0; //reset x reading
+	yoffset=0; //reset y reading
+
+
+	for(i=0;i<64;i++) //loop through 8 iterations
+	{
+		while(!accel_flag);
+		accel_flag=0;
+		i2c_read_data(ACCEL_ADDR, 0x27, Data, 1); //read status registers
+		if((Data[0]&0x03)==0x03) //are the 
+		{
+			while(!accel_flag);
+			accel_flag=0;
+			i2c_read_data(ACCEL_ADDR, 0x28, Data, 4); //read angle registers
+			xoffset +=Data[1]<<8 | Data[0]>>4; //set and total x values
+			yoffset +=Data[4]<<8 | Data[3]>>4; //set and total y values
+		}
+	}
+	xoffset = xoffset>>4; //average by dividing by 64
+	yoffset = yoffset>>4; //average by dividing by 64
 }
 //-----------------------------------------------------------------------------
 
