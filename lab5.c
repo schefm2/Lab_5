@@ -57,7 +57,7 @@ unsigned char Data[5];  //Data array used to read and write to I2C Bus slaves
 unsigned int desired_heading = 0, x, y, xoffset=0, yoffset=0;
 unsigned int initial_speed = MOTOR_NEUTRAL_PW;
 unsigned int PCA_overflows, current_heading, range, Servo_PW, Motor_PW;
-unsigned char keyboard, keypad, r_count, print_count, answer, first_obstacle;
+unsigned char keyboard, keypad, accel_count, print_count, accel_flag, print_flag, answer, first_obstacle;
 signed int heading_error;
 float gain, time; //Time is in tenths of a second
 
@@ -81,9 +81,10 @@ void main(void)
     SMB_Init();
     ADC_Init();	//Must come after PCA_Init to allow capacitors to charge
     
+    printf("\r\nStart.\r\n");
     while(1)
     {
-        
+
     }
 }
 
@@ -162,8 +163,7 @@ void Start_Parameters(void)
 void Set_Motion(void)
 {
 	//read sensors and set pulse widths
-    Read_Compass();
-    Read_Ranger();
+
     Set_Servo_PWM();
     Set_Motor_PWM();
 }
@@ -174,12 +174,12 @@ void Set_Motion(void)
 void Set_Neutral(void)
 {
 	//set servo to center and stop motor
-    if (SS)
+    if (SS1)
     {
 		PCA0CP0 = 0xFFFF - SERVO_CENTER_PW;
 		PCA0CP2 = 0xFFFF - MOTOR_NEUTRAL_PW;
 
-        while(SS) {}	//wait until slideswitch is turned OFF
+        while(SS1) {}	//wait until slideswitch is turned OFF
     }
 }
 
@@ -378,8 +378,8 @@ void ADC_Init(void)
     ADC1CN = 0x80;	//Enables AD/C converter
 
     //Gives capacitors in A/D converter time to charge
-    r_count = 0;
-    while(r_count < 6);
+    print_count = 0;
+    while(print_count < 6);
 
     //Sets gain to 1
     ADC1CF |= 0x01;
@@ -449,16 +449,27 @@ void PCA_Init(void)
 // Interrupt Service Routine for Programmable Counter Array Overflow Interrupt
 //
 void PCA_ISR ( void ) __interrupt 9
-{   /*
+{   
     if(CF)
     {
-        CF=0; //clear flag
-        PCA0 = 28672;//determine period to 20 ms
-        r_count++;
+        CF=0;           //clear flag
+        PCA0 = 28672;   //determine period to 20 ms
+        accel_count++;
 		print_count++;
+        if (accel_count >= 2)   //Accelerometer won't read unless 40 ms has passed
+        {
+            accel_flag = 1;
+            accel_count = 0;
+        }
+        if (print_count >= 20)  //Prints will only occur every 400 ms
+        {
+            print_flag = 1;
+            print_count = 0;
+        }
+        
     }
     PCA0CN &= 0x40; //Handle other interupt sources
-    */// reference to the sample code in Example 4.5 -Pulse Width Modulation implemented using
+    // reference to the sample code in Example 4.5 -Pulse Width Modulation implemented using
 }
 
 //-----------------------------------------------------------------------------
