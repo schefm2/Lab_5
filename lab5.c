@@ -243,8 +243,13 @@ void Print_Data(void)
 //----------------------------------------------------------------------------
 void Set_Servo_PWM(void)
 {
+    if (servo_stop)
+    {
+        return;
+    }
+
 	//Servo_PW set to value based on heading_error modified by gain set in Car_Parameters()
-	Servo_PW = gain*(heading_error) + SERVO_CENTER_PW;
+	Servo_PW = SERVO_CENTER_PW + ks*xaccel;
 
     //Additional precaution: if Servo_PW somehow exceeds the limits set in Lab 3-1,
     //then Servo_PW is set to corresponding endpoint of PW range [SERVO_LEFT_PW, SERVO_RIGHT_PW]
@@ -258,7 +263,12 @@ void Set_Servo_PWM(void)
 //----------------------------------------------------------------------------
 void Set_Motor_PWM(void)
 {
+    if (motor_stop)
+    {
+        return;
+    }
 	Motor_PW = MOTOR_NEUTRAL_PW+kdy*yaccel; // kdy is the y-axis drive feedback gain
+
 	//Add correction for side-to-side tilt, forcing a forward movement to turn the car.
 	Motor_PW += kdx*abs(xaccel); //kdx is the x-axis drive feedback gain
 	
