@@ -53,8 +53,8 @@ unsigned char read_AD_input(unsigned char pin_number);
 //-----------------------------------------------------------------------------
 // Global Variables
 //-----------------------------------------------------------------------------
-unsigned char Data[2];  //Data array used to read and write to I2C Bus slaves
-unsigned int desired_heading = 0;
+unsigned char Data[5];  //Data array used to read and write to I2C Bus slaves
+unsigned int desired_heading = 0, x, y, xoffset=0, yoffset=0;
 unsigned int initial_speed = MOTOR_NEUTRAL_PW;
 unsigned int PCA_overflows, current_heading, range, Servo_PW, Motor_PW;
 unsigned char keyboard, keypad, accel_count, print_count, wait_count, accel_flag, print_flag, answer, first_obstacle;
@@ -72,6 +72,7 @@ __sbit __at 0xB7 SS2;   //P3.7 (pin 32 on EVB connector); slideswitch run/stop f
 void main(void)
 {
     //Initialize board
+    Accel_Init_C();
     Sys_Init();
     putchar(' '); //The quotes in this line may not format correctly
     Port_Init();
@@ -236,10 +237,9 @@ void Set_Servo_PWM(void)
 //----------------------------------------------------------------------------
 void Set_Motor_PWM(void)
 {
-	//When car is not in neutral, it runs at speed set in Car_Parameters() at
-	//beginning of program
-	Motor_PW = initial_speed;
-	PCA0CP2 = 0xFFFF - Motor_PW;
+	Motor_PW = MOTOR_NEUTRAL_PW + kdy * y; // kdy is the y-axis drive feedback gain
+	//Add correction for side-to-side tilt, forcing a forward movement to turn the car.
+	Motor_PW += kdx * abs(x); //kdx is the x-axis drive feedback gain
 }
 
 //----------------------------------------------------------------------------
@@ -485,6 +485,29 @@ void SMB_Init()
 {
     SMB0CR = 0x93;	//Sets SCL to 100 kHz (actually ~94594 Hz)
     ENSMB = 1;		//Enables SMB
+}
+//-----------------------------------------------------------------------------
+//
+// Read Accelerometer
+//
+void Read_Accel()
+{
+	int i=0; //counter variable
+	x=0; //reset x reading
+	y=0; //reset y reading
+
+	for(i=0;i<8;i++) //loop through 8 iterations
+	{
+		i2c_read_data(ACCEL_ADDR, 0x27, Data, 1); //read status registers
+		if((Data[0]&0x03)==0x03) //are the 
+		{
+			i2c_read_data(ACCEL_ADDR, 0x28, Data, 4); //read angle registers
+			x +=Data[1]<<8 | Data[0]>>4; //set and total x values
+			y +=Data[4]<<8 | Data[3]>>4; //set and total y values
+		}
+	}
+	x = x>>3-xoffset; //average by dividing by 8 and subtract offset
+	y = y>>3-yoffset; //average by dividing by 8 and subtract offset
 }
 //-----------------------------------------------------------------------------
 
