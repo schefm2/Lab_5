@@ -75,7 +75,6 @@ __sbit __at 0xB7 SS2;   //P3.7 (pin 32 on EVB connector); slideswitch run/stop f
 void main(void)
 {
     //Initialize board
-    Accel_Init_C();
     Sys_Init();
     putchar(' '); //The quotes in this line may not format correctly
     Port_Init();
@@ -84,6 +83,7 @@ void main(void)
     PCA_Init();
     SMB_Init();
     ADC_Init();	//Must come after PCA_Init to allow capacitors to charge
+    Accel_Init_C();
     printf("\r\nStart.\r\n");
 
     
@@ -225,7 +225,7 @@ void Read_Print(void)
 //Print_Data
 //----------------------------------------------------------------------------
 void Print_Data(void)
-{
+{   /*
     if(print_count > 20)
 		//Only prints ever ~400 ms
     {
@@ -235,6 +235,7 @@ void Print_Data(void)
         lcd_clear();
         lcd_print("Heading is: %u\nRange is: %u\nServo Cycle: %u\nMotor Cycle: %u", current_heading, range, (int)(((float)Servo_PW/28672)*100), (int)(((float)Motor_PW/28672)*100));
     }
+    */
 }
 
 //LOW LEVEL FUNCTIONS
