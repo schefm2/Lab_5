@@ -57,9 +57,11 @@ unsigned char Data[2];  //Data array used to read and write to I2C Bus slaves
 unsigned int desired_heading = 0;
 unsigned int initial_speed = MOTOR_NEUTRAL_PW;
 unsigned int PCA_overflows, current_heading, range, Servo_PW, Motor_PW;
-unsigned char keyboard, keypad, accel_count, print_count, accel_flag, print_flag, answer, first_obstacle;
+unsigned char keyboard, keypad, accel_count, print_count, answer, first_obstacle;
 signed int heading_error;
 float gain, time; //Time is in tenths of a second
+
+__bit servo_stop, motor_stop, accel_flag, print_flag;
 
 //sbits
 __sbit __at 0xB6 SS1;   //P3.6 (pin 31 on EVB connector); slideswitch run/stop for Servo
@@ -81,9 +83,16 @@ void main(void)
     ADC_Init();	//Must come after PCA_Init to allow capacitors to charge
     
     printf("\r\nStart.\r\n");
+    //calibrations
+
     while(1)
     {
+        //drive backwards up slope
 
+        //store slope readings if higher than max
+        //max = (accel > max) ? accel : max;
+
+        //stop while accel readings indicate flat ground
     }
 }
 
@@ -176,10 +185,13 @@ void Set_Neutral(void)
     if (SS1)
     {
 		PCA0CP0 = 0xFFFF - SERVO_CENTER_PW;
-		PCA0CP2 = 0xFFFF - MOTOR_NEUTRAL_PW;
-
-        while(SS1) {}	//wait until slideswitch is turned OFF
     }
+    if (SS2)
+    {
+		PCA0CP2 = 0xFFFF - MOTOR_NEUTRAL_PW;
+    }
+    servo_stop = (SS1) ? 1 : 0;
+    motor_stop = (SS2) ? 1 : 0;
 }
 
 //----------------------------------------------------------------------------
