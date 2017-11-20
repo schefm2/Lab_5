@@ -25,6 +25,7 @@
 #define MOTOR_REVERSE_PW 2027 
 #define MOTOR_NEUTRAL_PW 2765
 #define MOTOR_FORWARD_PW 3502
+
 //-----------------------------------------------------------------------------
 // Function Prototypes
 //-----------------------------------------------------------------------------
@@ -38,6 +39,8 @@ void ADC_Init(void);
 void SMB_Init(void);
 
 //High Level Functions
+void Set_Neutral(void);
+void Set_Motion(void);
 void Start_Parameters(void);
 void Print_Data(void);
 
@@ -57,16 +60,16 @@ void Buzzer_Sound(void);
 //-----------------------------------------------------------------------------
 // Global Variables
 //-----------------------------------------------------------------------------
+
 unsigned char Data[5];  //Data array used to read and write to I2C Bus slaves
-signed long xaccel, yaccel, xoffset=0, yoffset=0;
+signed long xaccel, yaccel, xoffset=0, yoffset=0, error_sum=0;
 unsigned int initial_speed = MOTOR_NEUTRAL_PW;
 unsigned int PCA_overflows, Servo_PW, Motor_PW;
 unsigned char kdx, kdy, ks, ki; //Feedback gains for x-axis of car, y-axis of car, and steering
 unsigned char keyboard, keypad, accel_count, print_count, wait_count;
-signed int heading_error;
-float gain, time; //Time is in tenths of a second
+float gain; //Time is in tenths of a second
 
-__bit servo_stop, motor_stop, accel_flag, print_flag;
+__bit servo_stop, motor_stop, accel_flag, print_flag; //flags
 
 //sbits
 __sbit __at 0xB5 BUZZ;  //P3.5 (pin 34 on EVB connector); buzzer for running up slope
@@ -93,13 +96,16 @@ void main(void)
     
     Start_Parameters();
     
-    
     while(1)
     {
         Print_Data();
 		Read_Accel();
-        //drive backwards up slope
 
+        //drive backwards up slope
+        Set_Neutral(); //check for stop servo/motor
+        Set_Motion();
+
+        //settling band = +- 70 ish, 100 to be very safe
         //store slope readings if higher than max
         //max = (accel > max) ? accel : max;
 
@@ -194,8 +200,8 @@ void Set_Motion(void)
 {
 	//read sensors and set pulse widths
 
-    Set_Servo_PWM();
-    Set_Motor_PWM();
+    Set_Servo_PWM(); //steering control
+    Set_Motor_PWM(); //speed control
 }
 
 //----------------------------------------------------------------------------
@@ -551,6 +557,7 @@ void SMB_Init()
     SMB0CR = 0x93;	//Sets SCL to 100 kHz (actually ~94594 Hz)
     ENSMB = 1;		//Enables SMB
 }
+
 //-----------------------------------------------------------------------------
 //
 // Read Accelerometer
