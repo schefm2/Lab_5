@@ -52,6 +52,7 @@ unsigned int calibrate(void);
 unsigned char parallel_input(void);
 unsigned char read_AD_input(unsigned char pin_number);
 void Calibrate_Accel(void);
+void Buzzer_Sound(void);
 
 //-----------------------------------------------------------------------------
 // Global Variables
@@ -578,9 +579,8 @@ void Read_Accel()
 	yaccel = (yaccel>>3)-yoffset; //average by dividing by 8 and subtract offset
 }
 //-----------------------------------------------------------------------------
-//
-// Calibrate Accelerometer
-//
+//Calibrate Accelerometer
+//-----------------------------------------------------------------------------
 void Calibrate_Accel()
 {
 	char i=0; //counter variable
@@ -604,5 +604,30 @@ void Calibrate_Accel()
 	}
 	xoffset = xoffset>>6; //average by dividing by 64
 	yoffset = yoffset>>6; //average by dividing by 64
+}
+//-----------------------------------------------------------------------------
+// Buzzer_Sound
+//-----------------------------------------------------------------------------
+// Sets the buzzer to turn on for .5 seconds, then off for 1.0 seconds during
+// Normal operating conditions (i.e., when the car is in motion even if Servo
+// is set off)
+void Buzzer_Sound(void)
+{
+    //Checks if the Drive motor has been set to neutral
+    if (motor_stop)
+    {
+        BUZZ = 1;   //Turns buzzer off
+        return;
+    }
+    
+    if (wait_count > 75)    //75 pules of 20 ms makes up 1.5 seconds
+    {
+        wait_count = 0;     //Ensures that the timer is capped at 1.5 seconds
+        BUZZ = 0;           //Sets buzzer on
+    }
+    if (wait_count > 25)    //After buzzer is on for .5 seconds...
+    {
+        BUZZ = 1;           //Turn off for 1 second
+    }
 }
 //-----------------------------------------------------------------------------
