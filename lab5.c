@@ -57,13 +57,12 @@ void Calibrate_Accel(void);
 // Global Variables
 //-----------------------------------------------------------------------------
 unsigned char Data[5];  //Data array used to read and write to I2C Bus slaves
-signed long xaccel, yaccel, xoffset=0, yoffset=0;
+signed long xaccel, yaccel, xoffset=0, yoffset=0, error_sum=0;
 unsigned int initial_speed = MOTOR_NEUTRAL_PW;
 unsigned int PCA_overflows, Servo_PW, Motor_PW;
 unsigned char kdx, kdy, ks, ki; //Feedback gains for x-axis of car, y-axis of car, and steering
 unsigned char keyboard, keypad, accel_count, print_count, wait_count;
-signed int heading_error;
-float gain, time; //Time is in tenths of a second
+float gain; //Time is in tenths of a second
 
 __bit servo_stop, motor_stop, accel_flag, print_flag;
 
