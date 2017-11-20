@@ -54,11 +54,11 @@ LITEC Lab 5
 12. It should not be difficult to incorporate software for starting parameters that prints the gain from the pot and asks if you wish to try a different gain (Matt's recommendation).
 13. Steering gain should be set by key press from keypad or keyboard.
 14. The main logic for setting Servo_PW and Motor_PW is listed below:
-```
+```C
 Servo_PW = SERVO_CENTER_PW - ks * xaccel
 Motor_PW = MOTOR_NEUTRAL_PW + kdy * yaccel
 Motor_PW += kdx * abs(xaccel)
-```C
+```
 Where ks is the Servo gain, and kdy and kdx are the drive motor gains.
 
 For an additional integral function for the Motor_PW:
