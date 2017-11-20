@@ -16,10 +16,12 @@
 #define PING_CM 0x51
 #define PCA_START 28672     //PCA0 value for a pulse of ~20 ms
 
-//Left and right pulse widths set so that Servo isn't strained
+//Max left and right pulse widths set so the servo isn't strained
 #define SERVO_LEFT_PW 2425
 #define SERVO_CENTER_PW 2895
 #define SERVO_RIGHT_PW 3245
+
+//Max forward and reverse pulse widths set so the motor isn't strained
 #define MOTOR_REVERSE_PW 2027 
 #define MOTOR_NEUTRAL_PW 2765
 #define MOTOR_FORWARD_PW 3502
@@ -256,12 +258,20 @@ void Set_Servo_PWM(void)
     }
 
 	//Servo_PW set to value based on heading_error modified by gain set in Car_Parameters()
+    //correction for xaccel should be  in opposite direction to the accel; want to balance, not increase, the tilt
+    //did math, not sure????
 	Servo_PW = SERVO_CENTER_PW + ks*xaccel;
 
     //Additional precaution: if Servo_PW somehow exceeds the limits set in Lab 3-1,
     //then Servo_PW is set to corresponding endpoint of PW range [SERVO_LEFT_PW, SERVO_RIGHT_PW]
-	if (Servo_PW > SERVO_RIGHT_PW) Servo_PW = SERVO_RIGHT_PW;
-	if (Servo_PW < SERVO_LEFT_PW) Servo_PW = SERVO_LEFT_PW;
+
+    //Check for out-of-bounds:
+    Servo_PW =  (Servo_PW < SERVO_LEFT_PW) ? SERVO_LEFT_PW :
+                (Servo_PW > SERVO_RIGHT_PW) ? SERVO_RIGHT_PW :
+                Servo_PW;
+
+	//if (Servo_PW > SERVO_RIGHT_PW) Servo_PW = SERVO_RIGHT_PW;
+	//if (Servo_PW < SERVO_LEFT_PW) Servo_PW = SERVO_LEFT_PW;
 	PCA0CP0 = 0xFFFF - Servo_PW;
 }
 
@@ -274,13 +284,25 @@ void Set_Motor_PWM(void)
     {
         return;
     }
-	Motor_PW = MOTOR_NEUTRAL_PW+kdy*yaccel; // kdy is the y-axis drive feedback gain
 
+	//Add correction for front-to-back tilt, forcing a forward movement to climb the slope.
 	//Add correction for side-to-side tilt, forcing a forward movement to turn the car.
-	Motor_PW += kdx*abs(xaccel); //kdx is the x-axis drive feedback gain
-	
+    //Integral term:
+	error_sum += yaccel + abs(xaccel);
+
+    // kdy is the y-axis drive feedback gain; kdx is the x-axis drive feedback gain; ki is the integral gain
+	Motor_PW = MOTOR_NEUTRAL_PW + kdy*yaccel + kdx*abs(xaccel) + ki*error_sum;
+
+	//Motor_PW = MOTOR_NEUTRAL_PW+kdy*yaccel; // kdy is the y-axis drive feedback gain
+	//Motor_PW += kdx*abs(xaccel); //kdx is the x-axis drive feedback gain
 	//Motor_PW += kdx * abs(xaccel) + ki * error_sum //ki is the integral gain
-	//error_sum += yaccel + abs(xaccel)
+
+    //Check for out-of-bounds:
+    Motor_PW =  (Motor_PW < MOTOR_REVERSE_PW) ? MOTOR_REVERSE_PW :
+                (Motor_PW > MOTOR_FORWARD_PW) ? MOTOR_FORWARD_PW :
+                Motor_PW;
+
+	PCA0CP2 = 0xFFFF - Motor_PW;
 }
 
 //----------------------------------------------------------------------------
