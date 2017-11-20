@@ -49,12 +49,13 @@ unsigned int pow(unsigned int a, unsigned char b);
 unsigned int calibrate(void);
 unsigned char parallel_input(void);
 unsigned char read_AD_input(unsigned char pin_number);
+void Calibrate_Accel(void);
 
 //-----------------------------------------------------------------------------
 // Global Variables
 //-----------------------------------------------------------------------------
 unsigned char Data[5];  //Data array used to read and write to I2C Bus slaves
-unsigned int xaccel, yaccel, xoffset=0, yoffset=0;
+signed long xaccel, yaccel, xoffset=0, yoffset=0;
 unsigned int initial_speed = MOTOR_NEUTRAL_PW;
 unsigned int PCA_overflows, Servo_PW, Motor_PW;
 unsigned char kdx, kdy, ks, ki; //Feedback gains for x-axis of car, y-axis of car, and steering
@@ -89,8 +90,11 @@ void main(void)
     
     Start_Parameters();
     
+    
     while(1)
     {
+        Print_Data();
+		Read_Accel();
         //drive backwards up slope
 
         //store slope readings if higher than max
@@ -123,11 +127,11 @@ void Start_Parameters(void)
 	lcd_clear();
 	lcd_print("Set gain with pot");		//tell user to set gain with potentiometer
 	printf("\r\nTurn the potentiometer clockwise to increase the front-to-back gain from 0 to 50.\r\nPress # when you are finished.\r\n");
-    while (parallel_input() != '#')
+    while (parallel_input() != '#')     //Waits until user presses # to set the gain
     {
         gain = ((float)read_AD_input(7) / 255) * 50; //set gain from pot
         temp = gain;    //Cast gain as an unsigned int
-        printf("\rYou set your gain to: %u   ", temp);  //Print selected gain
+        printf("\rYou set your gain to: %u   ", temp);  //Print selected gain; overwrites existing print statement
         lcd_clear();    //Clear lcd screen
         lcd_print("Gain is: %u", temp); //Print selected gain to screen
     }
@@ -175,6 +179,9 @@ void Start_Parameters(void)
 	printf("\r\nYou selected %u as your integral gain", ki); //print integral gain
     lcd_print("\nFinal value above");  
     Wait();
+    
+    Calibrate_Accel();
+    printf("\r\nYour xoffset: %ld\r\nYour yoffset: %ld", xoffset, yoffset);
 }
 
 //----------------------------------------------------------------------------
@@ -226,11 +233,11 @@ void Read_Print(void)
 //----------------------------------------------------------------------------
 void Print_Data(void)
 {
-    if(print_count > 20)
+    if(print_flag)
 		//Only prints every ~400 ms
     {
-        print_count = 0;
-        printf("\r\n%u,%u,%u,%u,%u,%u", xaccel, yaccel, kdx, kdy, ks, Motor_PW);
+        print_flag = 0;
+        printf("\r\n%ld,%ld,%u,%u,%u,%u", xaccel, yaccel, kdx, kdy, ks, Motor_PW);
         lcd_clear();
         lcd_print("x-angle: %u\ny-angle: %u\nGains (x,y,s): %u, %u, %u\nMotor PW: %u", xaccel, yaccel, kdx, kdy, ks, Motor_PW);
     }
@@ -527,7 +534,7 @@ void SMB_Init()
 //
 void Read_Accel()
 {
-	int i=0; //counter variable
+	char i=0; //counter variable
 	xaccel = 0; //reset x reading
 	yaccel = 0; //reset y reading
 
@@ -542,11 +549,11 @@ void Read_Accel()
 			accel_flag=0;
 			i2c_read_data(ACCEL_ADDR, 0x28, Data, 4); //read angle registers
 			xaccel +=Data[1]<<8 | Data[0]>>4; //set and total x values
-			yaccel +=Data[4]<<8 | Data[3]>>4; //set and total y values
+			yaccel +=Data[3]<<8 | Data[2]>>4; //set and total y values
 		}
 	}
-	xaccel = xaccel>>3-xoffset; //average by dividing by 8 and subtract offset
-	yaccel = yaccel>>3-yoffset; //average by dividing by 8 and subtract offset
+	xaccel = (xaccel>>3)-xoffset; //average by dividing by 8 and subtract offset
+	yaccel = (yaccel>>3)-yoffset; //average by dividing by 8 and subtract offset
 }
 //-----------------------------------------------------------------------------
 //
@@ -554,7 +561,7 @@ void Read_Accel()
 //
 void Calibrate_Accel()
 {
-	int i=0; //counter variable
+	char i=0; //counter variable
 	xoffset=0; //reset x reading
 	yoffset=0; //reset y reading
 
@@ -570,12 +577,10 @@ void Calibrate_Accel()
 			accel_flag=0;
 			i2c_read_data(ACCEL_ADDR, 0x28, Data, 4); //read angle registers
 			xoffset +=Data[1]<<8 | Data[0]>>4; //set and total x values
-			yoffset +=Data[4]<<8 | Data[3]>>4; //set and total y values
+			yoffset +=Data[3]<<8 | Data[2]>>4; //set and total y values
 		}
 	}
-	xoffset = xoffset>>4; //average by dividing by 64
-	yoffset = yoffset>>4; //average by dividing by 64
+	xoffset = xoffset>>6; //average by dividing by 64
+	yoffset = yoffset>>6; //average by dividing by 64
 }
 //-----------------------------------------------------------------------------
-
-
