@@ -69,7 +69,7 @@ unsigned char kdx, kdy, ks, ki; //Feedback gains for x-axis of car, y-axis of ca
 unsigned char keyboard, keypad, accel_count, print_count, wait_count;
 float gain; //Time is in tenths of a second
 
-__bit servo_stop, motor_stop, accel_flag, print_flag; //flags
+__bit servo_stop, motor_stop, accel_flag, print_flag, post_start=0; //flags
 
 //sbits
 __sbit __at 0xB5 BUZZ;  //P3.5 (pin 34 on EVB connector); buzzer for running up slope
@@ -98,6 +98,19 @@ void main(void)
     
     while(1)
     {
+
+        //Just started, drive forward until on incline
+        while ( yaccel > -100 && yaccel < 100
+                && xaccel > -100 && xaccel < 100
+                && !post_start )
+        {
+            Print_Data();
+            Read_Accel();
+            Motor_PW = MOTOR_REVERSE_PW;
+            PCA0CP2 = 0xFFFF - Motor_PW;
+        }
+        post_start = 1;
+
         Print_Data();
 		Read_Accel();
 
@@ -110,6 +123,13 @@ void main(void)
         //max = (accel > max) ? accel : max;
 
         //stop while accel readings indicate flat ground
+        while ( yaccel > -100 && yaccel < 100
+                && xaccel > -100 && xaccel < 100
+                && post_start )
+        {
+            Motor_PW = MOTOR_NEUTRAL_PW;
+            Servo_PW = SERVO_CENTER_PW;
+        }
     }
 }
 
@@ -212,12 +232,14 @@ void Set_Neutral(void)
 	//set servo to center and stop motor
     if (SS1)
     {
-		PCA0CP0 = 0xFFFF - SERVO_CENTER_PW;
+		Servo_PW = SERVO_CENTER_PW;
     }
     if (SS2)
     {
-		PCA0CP2 = 0xFFFF - MOTOR_NEUTRAL_PW;
+        Motor_PW = MOTOR_NEUTRAL_PW;
     }
+    PCA0CP0 = 0xFFFF - Servo_PW;
+    PCA0CP2 = 0xFFFF - Motor_PW;
     servo_stop = (SS1) ? 1 : 0;
     motor_stop = (SS2) ? 1 : 0;
 }
