@@ -1,32 +1,23 @@
 # Tasks
 
 ## Matt
-- [x] Refactor PCA_ISR logic for reading flags
-- [x] Refactor Car_Parameters into Starting_Parameters
-- [x] Recheck ADC function to ensure it is working properly
-- [x] HW 11
-- [x] Refactor Pause & Wait functions to not reset count variables
-- [ ] Clean existing wiring 
-- [ ] Beginning implementation of main logic
-- [ ] Create a function to handle buzzer requirement
+- [ ] Clean existing wiring
+- [ ] Test possibility of removing gain variable
+- [ ] Pseudocode
+- [ ] Wire buzzer
 
 ## Sydney
-- [x] Refactor Print_Data
-- [x] Write Read_Accel
-- [x] Write Accel_Calibrate
-- [x] HW 11
-- [ ] Modify Set_Servo_PWM
-- [ ] Wire accelerometer, buzzer, and additional slide switch.
-- [ ] Determine if global keypad and keyboard are necessary
+- [ ] Determine proper gain equations and gain value ranges
+- [ ] Determine best place for a routinely updating read_AD_input for gain
+- [ ] Test for car steering after leaving settling band
+- [ ] Pseudocode
 
 ## Tom
-- [x] Determine main loop logic
-- [x] Change flags to use __bit type
-- [x] Modified Set_Neutral
-- [x] HW 11
 - [ ] Modify Set_Motor_PWM
 - [ ] Pseudocode
-- [ ] Test & Correct Read_Accel
+- [ ] Determine proper gain equations and gain value ranges
+- [ ] Continue working on main logic
+
 
 # Lab_5
 LITEC Lab 5
@@ -48,7 +39,7 @@ LITEC Lab 5
 6. Initial parameters and output should still be displayed on both the LCD display and the SecureCRT terminal.
 7. Three different gains will be set by the user; each should be able to be set with both the keypad and keyboard.
 8. Potentially add battery monitoring software (OPTIONAL).
-9. Data should be printed as one combined printf() including time (possibly unnecessary?), x & y accelerations, Motor_PW and Servo_PW, current gains, and possibly battery voltage (OPTIONAL) IN THAT ORDER.
+9. Data should be printed as one combined printf() including time (possibly unnecessary?), x & y accelerations, Motor_PW and Servo_PW, current gains, and possibly battery voltage (**OPTIONAL**) IN THAT ORDER.
 10. Switching the drive motor to neutral should operate in such a way that "adjustments can be made with the program running" (ask staff).
 11. For the drive motor, front-to-back gain is set via pot and varies from 1 to 50 (pure integer is fine) which can be adjusted while the car is in motion. Side-to-side gain is set by key press on either the keypad or keyboard.
 12. It should not be difficult to incorporate software for starting parameters that prints the gain from the pot and asks if you wish to try a different gain (Matt's recommendation).
@@ -63,8 +54,8 @@ Where ks is the Servo gain, and kdy and kdx are the drive motor gains.
 
 For an additional integral function for the Motor_PW:
 ```C
-drive_pw += kdx * abs(gx) + ki * error_sum
-error_sum += gy + abs(gx)
+drive_pw += kdx * abs(xaccel) + ki * error_sum
+error_sum += yaccel + abs(xaccel)
 ```
 Where ki is the integral gain.
 
@@ -93,3 +84,30 @@ Above is one solution to this issue that uses an integral term which will increa
 8. Ask about the Update_Value function's purpose on the Lab 5 pdf. Is it something that would be called while the car is actually driving up the slope?
 9. The sample code of Lab 5 is encouraging declaring and setting of flags for reading the accelerometer and keypad in the PCA_ISR.
 10. See last two pages of the pdf for sample code.
+
+#Completed Tasks
+
+##Matt
+- [x] Refactor PCA_ISR logic for reading flags
+- [x] Refactor Car_Parameters into Starting_Parameters
+- [x] Recheck ADC function to ensure it is working properly
+- [x] HW 11
+- [x] Refactor Pause & Wait functions to not reset count variables
+- [x] Testing Read_Accel
+- [x] Create a function to handle buzzer requirement
+
+##Sydney
+- [x] Refactor Print_Data
+- [x] Write Read_Accel
+- [x] Write Accel_Calibrate
+- [x] HW 11
+- [x] Testing Read_Accel
+
+##Tom
+- [x] Determine main loop logic
+- [x] Change flags to use __bit type
+- [x] Modified Set_Neutral
+- [x] HW 11
+- [x] Testing Read_Accel
+- [x] Determine if global keypad and keyboard are necessary
+- [x] Beginning implementation of main logic
