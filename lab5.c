@@ -138,9 +138,9 @@ void Start_Parameters(void)
 	printf("\r\nTurn the potentiometer clockwise to increase the front-to-back gain from 0 to 50.\r\nPress # when you are finished.\r\n");
     while (parallel_input() != '#')     //Waits until user presses # to set the gain
     {
-        gain = ((float)read_AD_input(7) / 255) * 50; //set gain from pot
+        gain = ((float)read_AD_input(7) / 255) * 50; //set gain from pot (maybe just set temp to this straight away?)
         temp = gain;    //Cast gain as an unsigned int
-        printf("\rYou set your gain to: %u   ", temp);  //Print selected gain; overwrites existing print statement
+        printf("\rYour gain is currently: %u   ", temp);  //Print selected gain; overwrites existing print statement
         lcd_clear();    //Clear lcd screen
         lcd_print("Gain is: %u", temp); //Print selected gain to screen
     }
@@ -189,6 +189,7 @@ void Start_Parameters(void)
     lcd_print("\nFinal value above");  
     Wait();
     
+    printf("\r\nCalibrating accelerometer...");
     Calibrate_Accel();
     printf("\r\nYour xoffset: %ld\r\nYour yoffset: %ld", xoffset, yoffset);
 }
@@ -632,6 +633,7 @@ void Buzzer_Sound(void)
         wait_count = 0;     //Ensures that the timer is capped at 1.5 seconds
         BUZZ = 0;           //Sets buzzer on
     }
+    
     if (wait_count > 25)    //After buzzer is on for .5 seconds...
     {
         BUZZ = 1;           //Turn off for 1 second
