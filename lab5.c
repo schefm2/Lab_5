@@ -56,6 +56,7 @@ unsigned char parallel_input(void);
 unsigned char read_AD_input(unsigned char pin_number);
 void Calibrate_Accel(void);
 void Buzzer_Sound(void);
+unsigned char Calculate_Gain(void);
 
 //-----------------------------------------------------------------------------
 // Global Variables
@@ -67,7 +68,6 @@ unsigned int initial_speed = MOTOR_NEUTRAL_PW;
 unsigned int PCA_overflows, Servo_PW, Motor_PW;
 unsigned char kdx, kdy, ks, ki; //Feedback gains for x-axis of car, y-axis of car, and steering
 unsigned char keyboard, keypad, accel_count, print_count, wait_count;
-float gain; //Time is in tenths of a second
 
 __bit servo_stop, motor_stop, accel_flag, print_flag, post_start=0; //flags
 
@@ -141,7 +141,6 @@ void main(void)
 // the keypad or the keyboard.
 void Start_Parameters(void)
 {
-	unsigned char temp = 0;	//Used to print cast gain as an int
     Servo_PW = SERVO_CENTER_PW;		//Initialize car to straight steering and no movement
     Motor_PW = MOTOR_NEUTRAL_PW;	//Set pulse to stop car
     PCA0CP0 = 0xFFFF - Servo_PW;	//tell hardware to use new servo pulse width
@@ -158,13 +157,12 @@ void Start_Parameters(void)
 	printf("\r\nTurn the potentiometer clockwise to increase the front-to-back gain from 0 to 50.\r\nPress # when you are finished.\r\n");
     while (parallel_input() != '#')     //Waits until user presses # to set the gain
     {
-        gain = ((float)read_AD_input(7) / 255) * 50; //set gain from pot (maybe just set temp to this straight away?)
-        temp = gain;    //Cast gain as an unsigned int
-        printf("\rYour gain is currently: %u   ", temp);  //Print selected gain; overwrites existing print statement
+        kdy = Calculate_Gain(); //set gain from pot
+        //temp = gain;    //Cast gain as an unsigned int
+        printf("\rYour gain is currently: %u   ", kdy);  //Print selected gain; overwrites existing print statement
         lcd_clear();    //Clear lcd screen
-        lcd_print("Gain is: %u", temp); //Print selected gain to screen
+        lcd_print("Gain is: %u", kdy); //Print selected gain to screen
     }
-    kdy = temp; //Store front-to-back gain
     printf("\r\nYou selected %u as your front-to-back gain.", kdy);   //Print to confirm final gain
     lcd_print("\nFinal value above");               //Print to confirm final gain
     Wait();
@@ -661,4 +659,15 @@ void Buzzer_Sound(void)
         BUZZ = 1;           //Turn off for 1 second
     }
 }
+//-----------------------------------------------------------------------------
+// Calculate_Gain
+//-----------------------------------------------------------------------------
+//
+//
+//
+unsigned char Calculate_Gain(void)
+{
+    return ((float)read_AD_input(7) / 255) * 50;
+}
+
 //-----------------------------------------------------------------------------
