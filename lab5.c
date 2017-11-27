@@ -45,6 +45,8 @@ void Start_Parameters(void);
 void Print_Data(void);
 
 //Low Level Functions
+void BeginDrive(void);
+void StopDrive(void);
 void Read_Accel(void);
 void Set_Servo_PWM(void);
 void Set_Motor_PWM(void);
@@ -64,10 +66,10 @@ unsigned char Calculate_Gain(void);
 
 unsigned char Data[5];  //Data array used to read and write to I2C Bus slaves
 signed long xaccel, yaccel, xoffset=0, yoffset=0, error_sum=0;
-unsigned int initial_speed = MOTOR_NEUTRAL_PW;
-unsigned int PCA_overflows, Servo_PW, Motor_PW;
+unsigned int Servo_PW, Motor_PW;
 unsigned char kdx, kdy, ks, ki; //Feedback gains for x-axis of car, y-axis of car, and steering
 unsigned char keyboard, keypad, accel_count, print_count, wait_count;
+float xpercent, ypercent; //Time is in tenths of a second
 
 __bit servo_stop, motor_stop, accel_flag, print_flag, post_start=0; //flags
 
@@ -98,17 +100,16 @@ void main(void)
     
     while(1)
     {
+        //Gain can change mid drive, if wanted.
+        kdy = Calculate_Gain();
 
         //Just started, drive forward until on incline
-        while ( yaccel > -100 && yaccel < 100
-                && xaccel > -100 && xaccel < 100
-                && !post_start )
+        if (!post_start)
         {
-            Print_Data();
-            Read_Accel();
-            Motor_PW = MOTOR_REVERSE_PW;
-            PCA0CP2 = 0xFFFF - Motor_PW;
+            BeginDrive();
         }
+        //Exited the function: we finished the flat starting area.
+        //Signal this so we can stop when we next hit a flat area.
         post_start = 1;
 
         Print_Data();
@@ -117,19 +118,53 @@ void main(void)
         //drive backwards up slope
         Set_Neutral(); //check for stop servo/motor
         Set_Motion();
+        Buzzer_Sound();
 
-        //settling band = +- 70 ish, 100 to be very safe
         //store slope readings if higher than max
         //max = (accel > max) ? accel : max;
 
-        //stop while accel readings indicate flat ground
-        while ( yaccel > -100 && yaccel < 100
-                && xaccel > -100 && xaccel < 100
-                && post_start )
+        if (post_start)
         {
-            Motor_PW = MOTOR_NEUTRAL_PW;
-            Servo_PW = SERVO_CENTER_PW;
+            StopDrive();
         }
+    }
+}
+
+//----------------------------------------------------------------------------
+// Begin Drive
+//----------------------------------------------------------------------------
+// Starts driving, slowly increasing speed until it leaves "flat" ground.
+void BeginDrive( void )
+{
+    //Assume noisy from motor: 5% tolerance (max accel is 10k, 600/10k = 6% ~ 5%).
+    while ( yaccel > -300 && yaccel < 300
+            && xaccel > -300 && xaccel < 300 )
+    {
+        Print_Data();
+        Read_Accel();
+        //Slowly go faster - lessens the noise from the motor on the accelerometer.
+        Motor_PW = (Motor_PW+20 > MOTOR_REVERSE_PW) ? MOTOR_REVERSE_PW : Motor_PW+20;
+        PCA0CP2 = 0xFFFF - Motor_PW;
+    }
+}
+
+//----------------------------------------------------------------------------
+// Stop Drive
+//----------------------------------------------------------------------------
+// Stops driving, turn off buzzer; we are on "flat" ground.
+void StopDrive( void )
+{
+    //stop while accel readings indicate flat ground
+    //wheels add their own noise too
+    while ( yaccel > -300 && yaccel < 300
+            && xaccel > -300 && xaccel < 300 )
+    {
+        //Turn everything off/neutral and sit.
+        BUZZ = 1;
+        Servo_PW = SERVO_CENTER_PW;
+        Motor_PW = MOTOR_NEUTRAL_PW;
+        PCA0CP0 = 0xFFFF - Servo_PW;
+        PCA0CP2 = 0xFFFF - Motor_PW;
     }
 }
 
@@ -232,31 +267,24 @@ void Set_Neutral(void)
     if (SS1)
     {
 		Servo_PW = SERVO_CENTER_PW;
+        servo_stop = 1;
+    }
+    else
+    {
+        servo_stop = 0;
     }
     if (SS2)
     {
         Motor_PW = MOTOR_NEUTRAL_PW;
+        motor_stop = 1;
+    }
+    else
+    {
+        motor_stop = 0;
     }
     PCA0CP0 = 0xFFFF - Servo_PW;
     PCA0CP2 = 0xFFFF - Motor_PW;
-    servo_stop = (SS1) ? 1 : 0;
-    motor_stop = (SS2) ? 1 : 0;
 }
-
-//----------------------------------------------------------------------------
-//Read_Print
-//----------------------------------------------------------------------------
-//
-// Used to allow the car to continue making readings to print those readings
-// while it is in non-normal operating conditions (i.e. encountering obstacle).
-//
-void Read_Print(void)
-{
-    //Read_Compass();
-    //Read_Ranger();
-    Print_Data();
-}
-
 
 //----------------------------------------------------------------------------
 //Print_Data
@@ -288,7 +316,7 @@ void Set_Servo_PWM(void)
 	//Servo_PW set to value based on heading_error modified by gain set in Car_Parameters()
     //correction for xaccel should be  in opposite direction to the accel; want to balance, not increase, the tilt
     //did math, not sure????
-	Servo_PW = SERVO_CENTER_PW + ks*xaccel;
+	Servo_PW = SERVO_CENTER_PW + ks*xpercent;
 
     //Additional precaution: if Servo_PW somehow exceeds the limits set in Lab 3-1,
     //then Servo_PW is set to corresponding endpoint of PW range [SERVO_LEFT_PW, SERVO_RIGHT_PW]
@@ -316,10 +344,10 @@ void Set_Motor_PWM(void)
 	//Add correction for front-to-back tilt, forcing a forward movement to climb the slope.
 	//Add correction for side-to-side tilt, forcing a forward movement to turn the car.
     //Integral term:
-	error_sum += yaccel + abs(xaccel);
+	error_sum += ypercent + abs(xpercent);
 
     // kdy is the y-axis drive feedback gain; kdx is the x-axis drive feedback gain; ki is the integral gain
-	Motor_PW = MOTOR_NEUTRAL_PW + kdy*yaccel + kdx*abs(xaccel) + ki*error_sum;
+	Motor_PW = MOTOR_NEUTRAL_PW + kdy*ypercent + kdx*abs(xpercent) + ki*error_sum;
 
 	//Motor_PW = MOTOR_NEUTRAL_PW+kdy*yaccel; // kdy is the y-axis drive feedback gain
 	//Motor_PW += kdx*abs(xaccel); //kdx is the x-axis drive feedback gain
@@ -604,7 +632,13 @@ void Read_Accel()
 		}
 	}
 	xaccel = (xaccel>>3)-xoffset; //average by dividing by 8 and subtract offset
+    xpercent = (float) xaccel; //gravity is 9800 mm/s^2, so about 10k for error would be max.
+    xpercent /= 10000; //gravity is 9800 mm/s^2, so about 10k for error would be max.
+
 	yaccel = (yaccel>>3)-yoffset; //average by dividing by 8 and subtract offset
+    ypercent = (float) yaccel; //gravity is 9800 mm/s^2, so about 10k for error would be may.
+    ypercent /= 10000; //gravity is 9800 mm/s^2, so about 10k for error would be may.
+    //ypercent = (float) yaccel/10000; //gravity is 9800 mm/s^2, so about 10k for error would be may.
 }
 //-----------------------------------------------------------------------------
 //Calibrate Accelerometer
