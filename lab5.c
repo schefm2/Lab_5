@@ -406,12 +406,13 @@ unsigned int pow(unsigned int a, unsigned char b)
 //----------------------------------------------------------------------------
 unsigned int calibrate(void)
 {
-	unsigned char keypad;
-	unsigned char keyboard;
 	unsigned char isPress = 0;
 	unsigned char pressCheck = 0;
 	unsigned int value = 0;	//Final value to be returned
 	
+    for (;pressCheck < 5;pressCheck++)
+        Data[pressCheck] = 0;
+    pressCheck = 0;
 	while(1)
 	{
 		keyboard = getchar_nw();	//This constantly sets keyboard to whatever char is in the terminal
@@ -419,7 +420,17 @@ unsigned int calibrate(void)
 		Pause();					//Pause necessary to prevent overreading the keypad
 
 		if (keyboard == '#' || keypad == '#') //# is a confirm key, so it will finish calibrate()
+        {
+            printf("\r\nThis is isPress: %u\r\n", isPress);
+            for (pressCheck = 0; 0 < isPress; isPress--)
+            {
+                value += Data[pressCheck++]*pow(10,isPress - 1);
+                printf("\r\nThis is value: %u\r\n", value);
+            }
+            if (value > 255)    //If the gain is set too high, set to saturation for the unsigned char gains
+                return 255;
 			return value;	
+        }
 
 		if (isPress > pressCheck && keypad == 0xFF && keyboard == 0xFF)	//Only increments pressCheck if held key is released
 			pressCheck++;
@@ -427,8 +438,9 @@ unsigned int calibrate(void)
 
 		if (pressCheck == 6)	//If a 6th key is pressed, then released
 		{
+            for (pressCheck = 0;pressCheck < 5;pressCheck++)
+                Data[pressCheck] = 0;
 			isPress = pressCheck = 0;	//Reset the flags
-			value = 0;	//Reset return value
 			lcd_print("\b\b\b\b\b\b");	//Clear value displayed on LCD, needs an extra \b for some reason?
 			printf("\r      \r");	//Clear value displayed on terminal
 			
@@ -441,14 +453,14 @@ unsigned int calibrate(void)
 			{
 				lcd_print("%c",keypad);	//Adds pressed key to LCD screen
 				printf("%c", keypad);	//Adds pressed key to computer terminal
-				value = value + ((unsigned int)(keypad - '0')) * pow(10,4 - isPress);	//Essentially takes each pressed key and multiples by some power of 10
+				Data[isPress] = ((unsigned int)(keypad - '0'));	
 				isPress++;
 			}
 			if (keyboard != 0xFF)	//When an actual key is held down
 			{
 				lcd_print("%c",keyboard);	//Adds pressed key to LCD screen
 				//printf("%c", keyboard); this line is not necessary as getchar_nw automatically executes a putchar()
-				value = value + ((unsigned int)(keyboard - '0')) * pow(10,4 - isPress);	//Essentially takes each pressed key and multiples by some power of 10
+				Data[isPress] = ((unsigned int)(keyboard - '0'));
 				isPress++;	
 			}
 		}
