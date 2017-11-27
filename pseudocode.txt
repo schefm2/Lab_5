@@ -105,7 +105,14 @@ Functions
 	End XBR0_Init
 
 	Port_Init
-
+		P1MDOUT |= 0x05;  Set output pin for CEX0 and CEX2 in push-pull mode
+		P1MDOUT &= ~0x80; Set potentiometer pin (P1.7) to open drain
+		P1 |= 0x80;	  Set impedance high on P1.7
+		P1MDIN &= ~0x80;  Set P1.7 to analog input
+	
+		P3MDOUT &= ~0xC0; Pin 3.7, 3.8 open drain
+    		P3MDOUT |= 0x20;  Pin 3.5 push/pull
+		P3 |= 0xC0;       Pin 3.7,3.8 high impedance
 	End Port_Init
 	
 	Interrupt_Init
@@ -114,7 +121,7 @@ Functions
 	End Interrupt_Init
 	
 	PCA_Init
-
+		
 	End PCA_Init
 	
 	ADC_Init
@@ -134,28 +141,23 @@ Functions
 	End PCA_ISR __interrupt 9
 	
 	Set_Neutral
-		If SS is ON
-			Set CCM0 with SERVO_CENTER_PW
-			Set CCM2 with MOTOR_NEUTRAL_PW
-			Wait while (SS is ON)
+		If SS1 is ON
+			Set Servo_PW to SERVO_CENTER_PW
+		If SS2 is ON
+			Set Motor_PW to MOTOR_NEUTRAL_PW
+		Set CCM0 with Servo_PW;
+		Set CCM2 with Motor_PW;
+		if SS1 is ON set servo_stop flag high else set low
+		if SS1 is ON set motor_stop flag high else set low
+
 	End Set_Neutral
 	
 	Set_Motion
-		Read_Compass()
-		Read_Ranger()
 		Set_Servo_PWM()
 		Set_Motor_PWM()
 	End Set_Motion
 	
-	Print_Data
-		If print_count > 20
-            Increment time by print_count/5
-			Set print_count to 0
-			Print heading_error and Motor_PW
-	End Print_Data
-	
 	Start_Parameters
-		unsigned int temp;
 		Set Servo_PW to SERVO_CENTER_PW
 		Set Motor_PW to MOTOR_NEUTRAL_PW
 		Set CCM0 with Servo_PW;
@@ -168,106 +170,68 @@ Functions
 		Print calibration for LCD keypad screen
 		Wait()
 		
+
+		Print instructions to set gain with pot
+		Call calculate gain
+		set kdy to value from pot
+		Print gain to terminal
+		Clear lcd
+		Print gain to lcd
+
+		Print instructions to set side to side gain
+		While gain is not an appropriate value 
+		  Call calibrate which returns a 5 digit number from either the keyboard of keypad
+		  Wait a second
 		
-		Print instructions for setting gain on keypad screen and terminal
-		calibrate()
-		Set gain to read_AD_input with a float casting
-		Print selected gain to terminal and to keypad screen with char casting
-		Wait()
+		Print instructions to set steering gain
+		While gain is not an appropriate value 
+		  Call calibrate which returns a 5 digit number from either the keyboard of keypad
+		  Wait a second
+
+		Print instructions to set integral gain constant
+		While gain is not an appropriate value 
+		  Call calibrate which returns a 5 digit number from either the keyboard of keypad
+		  Wait a second
 		
-        //Run until you get a valid heading
-		do
-			Print instructions to select desired_heading from 0 to 3599 on terminal and keypad screen
-			Set desired_heading to calibrate()
-			Wait()
-		while desired_heading > 3599
-		Print desired_heading
-		
-        //Run until you get a speed between neutral and max
-		do
-		{
-			Print instructions to select initial_speed from 2765 to 3502 on terminal and keypad screen
-			Set initial_speed to calibrate()
-			Wait()
-		}
-		while initial_speed < 2765 OR initial_speed > 3502
-		Print initial_speed
-		
-		Wait()
-		Set Motor_PW to initial_speed
-		Set CCM2 with Motor_PW
+		Call calibrate accel 
+		Print offsets
+
 	End Start_Parameters
 	
-	Read_Print
-		Read_Compass()
-		Read_Ranger()
-		Print_Data()
-	End Read_Print
-	
 	Print_Data
-		If print_count > 20
-			Increment time by print_count / 5
-			Print time, heading_error, Servo_PW, and range
+		if print flag has been set high
+		    set print flag low
+		    print yaccel, xaccel, kdx, kdy, ks, motor pw to terminal comma separated
+		    clear lcd
+		    print more descriptively to the lcd
+
 	End Print_Data
 	
-	Read_Compass
-        //Only call every 40 ms; extra precaution with reset in Read_Ranger (goes from 4 to 0)
-		If r_count % 2 is zero AND r_count is not 0
-
-            //Read compass reading:
-			i2c_read_data(COMPASS_ADDR, 2, Data, 2)
-
-			Set current heading to Data with bit shifting
-			Set heading_error to desired_heading - current_heading
-
-            //Check how to turn:
-			If heading_error > 1800
-				Set heading_error to heading_error - 3599
-			If heading_error < -1800
-				Set heading_error to heading_error + 3599
-	End Read_Compass
-	
-	Read_Ranger
-        //Only call every 80 ms; reset counter
-		If r_count > 4
-			Set r_count to 0
-
-            //Read ranger reading:
-			i2c_read_data(RANGER_ADDR, 2, Data, 2)
-
-			Set range to Data with bit shifting
-
-            //Start the next ping:
-			Set Data[0] to PING_CM
-			i2c_write_data (RANGER_ADDR, 0, Data, 1)
-	End Read_Ranger
-	
 	Set_Servo_PWM
-        //Steer proportionately to how bad our current heading is:
-		Set Servo_PW to gain*(heading_error) + SERVO_CENTER_PW
-
-        //Don't overstep max bounds: don't break car linkages
-		If Servo_PW > SERVO_RIGHT_PW
-			Set Servo_PW to SERVO_RIGHT_PW
-		If Servo_PW < SERVO_LEFT_PW
-			Set Servo_PW to SERVO_LEFT_PW
-
-        //Set servo:
-		Set CCM0 wit Servo_PW
+        	if servo_stop flag is high return without change
+		Set Servo_PW to SERVO_CENTER_PW + ks*xaccel where weve set xaccel to a percent for the purpose of scale
+		if Servo_PW less than min set to min
+		if Servo_PW is graeater than max set to max
+		Set CCM0 with Servo_PW
 	End Set_Servo_PWM
 	
 	Set_Motor_PWM
-        //We only stop or go; no proportional drive for this lab
-		Set Motor_PW to initial_speed
+        	if motor_stop flag is high return without change 
+		Set error sum to yccel plus the absolute value of xaccel (goes fastest at highest slope)
+		Motor_PW = NUETRAL + kdy*yaccel + kdx *abs(xaccel) + ki*error_sum;
+		if Motor_PW is less than min set to min
+		if Motor_PW is greater than max set to max
 		Set CCM2 with Motor_PW
 	End Set_Motor_PWM
 	
 	Pause
-
+		set wait_count (incremented in PCA) to 0
+		while wait_count is less than 2
 	End Pause
 	
 	Wait
-
+		set wait_count (incremented in PCA) to 0
+		while wait_count is less than 50
 	End Wait
 	
 	pow
