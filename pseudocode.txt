@@ -28,15 +28,13 @@ declare constants
 		void SMB_Init();
 
 	High Level Functions
-		void Car_Parameters(void);
+		void Start_Parameters(void);
 		void Set_Motion(void);
 		void Set_Neutral(void);
 		void Print_Data(void);
-		void Read_Print(void);
 	
 	Low Level Functions
-		void Read_Compass(void);
-		void Read_Ranger(void);
+		void Read_Accel(void);
 		void Set_Servo_PWM(void);
 		void Set_Motor_PWM(void);
 		void Pause(void);
@@ -45,18 +43,24 @@ declare constants
 		unsigned int calibrate(void);
 		unsigned char parallel_input(void);
 		unsigned char read_AD_input(unsigned char pin_number);
+		void Calibrate_Accel(void);
+		void Buzzer_Sound(void);
 
 global variables
-	unsigned char Data[2];
-	unsigned int desired_heading = 0;
+	unsigned char Data[5];  //Data array used to read and write to I2C Bus slaves
+	signed long xaccel, yaccel, xoffset=0, yoffset=0, error_sum=0;
 	unsigned int initial_speed = MOTOR_NEUTRAL_PW;
-	unsigned int PCA_overflows, current_heading, range, Servo_PW, Motor_PW;
-	unsigned char keyboard, keypad, r_count, print_count, answer, first_obstacle;
-	signed int heading_error;
-	float gain, time;
+	unsigned int PCA_overflows, Servo_PW, Motor_PW;
+	unsigned char kdx, kdy, ks, ki; //Feedback gains for x-axis of car, y-axis of car, and steering
+	unsigned char keyboard, keypad, accel_count, print_count, wait_count;
+	float gain; //Time is in tenths of a second
+
+__bit servo_stop, motor_stop, accel_flag, print_flag, post_start=0; //flags
 
 sbits
-	__sbit __at 0xB7 SS;
+	__sbit __at 0xB5 BUZZ; buzzer 
+	__sbit __at 0xB6 SS1; servo stop slideswitch
+	__sbit __at 0xB7 SS2; motor stop slideswitch
 	
 main function
     //Call all initialization functions for the chip
@@ -68,11 +72,28 @@ main function
     PCA_Init();
     SMB_Init();
     ADC_Init();
+    Accel_Init_C();
+
+    print begin statement
 
     //Get user parameters for gain, heading, and speed
     Start_Parameters();
 
     Begin infinite loop
+	while accelerometer gives roughly flat ground readings and while post_start flag hasn't been set
+	    call print data
+	    read accelerometer
+	    set motor in reverse
+	set post_start flag
+
+	call print data
+	read accelerometer
+	call set neutral to determine switch positioning
+	call set motion to set servo and motor pw based on accelerometer readings
+
+	while accelerometer gives roughly flat ground readings and while the post_start flag is st
+	    set servo to center
+	    stop motor
 
     End infinite loop
 End main function
