@@ -121,7 +121,9 @@ Functions
 	End Interrupt_Init
 	
 	PCA_Init
-		
+		Use 16 bit counter with SYSCLK/12
+		Set CCM0 and CCM2 to 16 bit compare mode 
+		Enable PCA counter
 	End PCA_Init
 	
 	ADC_Init
@@ -137,9 +139,21 @@ Functions
 	End SMB_Init
 	
 	PCA_ISR __interrupt 9
+		if CF is high
+		    Set CF low
+		    Set PCA start so period is 20 ms
+		    increment acccel_count print_count and wait_count
+		    
+		    if accel_count is greater than or equal to 1 
+		        Set accel_flag high
+			Zero accel_count
+		    if print_count is greater than or equal to 1 
+			Set print_flag high
+			Zero print_count
+		PCA0CN &= 0x40 to handle other interupt sources
 
 	End PCA_ISR __interrupt 9
-	
+
 	Set_Neutral
 		If SS1 is ON
 			Set Servo_PW to SERVO_CENTER_PW
