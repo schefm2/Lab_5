@@ -89,9 +89,9 @@ Above is one solution to this issue that uses an integral term which will increa
 9. The sample code of Lab 5 is encouraging declaring and setting of flags for reading the accelerometer and keypad in the PCA_ISR.
 10. See last two pages of the pdf for sample code.
 
-#Completed Tasks
+# Completed Tasks
 
-##Matt
+## Matt
 - [x] Refactor PCA_ISR logic for reading flags
 - [x] Refactor Car_Parameters into Starting_Parameters
 - [x] Recheck ADC function to ensure it is working properly
@@ -103,14 +103,14 @@ Above is one solution to this issue that uses an integral term which will increa
 - [x] Rewrite calibrate for better usability
 - [x] Test possibility of removing gain variable
 
-##Sydney
+## Sydney
 - [x] Refactor Print_Data
 - [x] Write Read_Accel
 - [x] Write Accel_Calibrate
 - [x] HW 11
 - [x] Testing Read_Accel
 
-##Tom
+## Tom
 - [x] Determine main loop logic
 - [x] Change flags to use __bit type
 - [x] Modified Set_Neutral
