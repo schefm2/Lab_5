@@ -26,9 +26,6 @@
 #define MOTOR_NEUTRAL_PW 2765
 #define MOTOR_FORWARD_PW 3502
 
-#define PERCENT_DENOM 500
-#define ACCEL_READ 8
-
 //-----------------------------------------------------------------------------
 // Function Prototypes
 //-----------------------------------------------------------------------------
@@ -48,8 +45,6 @@ void Start_Parameters(void);
 void Print_Data(void);
 
 //Low Level Functions
-void BeginDrive(void);
-void StopDrive(void);
 void Read_Accel(void);
 void Set_Servo_PWM(void);
 void Set_Motor_PWM(void);
@@ -68,13 +63,11 @@ unsigned char Calculate_Gain(void);
 //-----------------------------------------------------------------------------
 
 unsigned char Data[5];  //Data array used to read and write to I2C Bus slaves
-signed long xaccel, yaccel, xoffset=0, yoffset=0;
-signed int error_sum = 0, yaccel_mem, max_slope = 0;
-unsigned int Servo_PW, Motor_PW;
-unsigned char kdy; //Feedback gains for x-axis of car, y-axis of car, and steering
-__xdata unsigned char kdx, ks, ki;
+signed long xaccel, yaccel, xoffset=0, yoffset=0, error_sum=0;
+unsigned int initial_speed = MOTOR_NEUTRAL_PW;
+unsigned int PCA_overflows, Servo_PW, Motor_PW;
+unsigned char kdx, kdy, ks, ki; //Feedback gains for x-axis of car, y-axis of car, and steering
 unsigned char keyboard, keypad, accel_count, print_count, wait_count;
-float xpercent, ypercent; //Time is in tenths of a second
 
 __bit servo_stop, motor_stop, accel_flag, print_flag, post_start=0; //flags
 
@@ -105,82 +98,39 @@ void main(void)
     
     while(1)
     {
-        //Gain can change mid drive, if wanted.
-        kdy = Calculate_Gain();
 
         //Just started, drive forward until on incline
-        if (!post_start)
+        while ( yaccel > -100 && yaccel < 100
+                && xaccel > -100 && xaccel < 100
+                && !post_start )
         {
-            BeginDrive();
+            Print_Data();
+            Read_Accel();
+            Motor_PW = MOTOR_REVERSE_PW;
+            PCA0CP2 = 0xFFFF - Motor_PW;
         }
-        //Exited the function: we finished the flat starting area.
-        //Signal this so we can stop when we next hit a flat area.
         post_start = 1;
 
-		Read_Accel();
         Print_Data();
+		Read_Accel();
 
         //drive backwards up slope
         Set_Neutral(); //check for stop servo/motor
         Set_Motion();
-        Buzzer_Sound();
 
+        //settling band = +- 70 ish, 100 to be very safe
         //store slope readings if higher than max
         //max = (accel > max) ? accel : max;
 
-        if (post_start)
+        //stop while accel readings indicate flat ground
+        while ( yaccel > -100 && yaccel < 100
+                && xaccel > -100 && xaccel < 100
+                && post_start )
         {
-            StopDrive();
+            Motor_PW = MOTOR_NEUTRAL_PW;
+            Servo_PW = SERVO_CENTER_PW;
         }
     }
-}
-
-//----------------------------------------------------------------------------
-// Begin Drive
-//----------------------------------------------------------------------------
-// Starts driving, slowly increasing speed until it leaves "flat" ground.
-void BeginDrive( void )
-{
-    //Assume noisy from motor: 5% tolerance (max accel is 10k, 600/10k = 6% ~ 5%).
-    while ( yaccel > -1000 && yaccel < 1000
-            && xaccel > -500 && xaccel < 500 )
-    {
-        Read_Accel();
-        Print_Data();
-        //Slowly go faster - lessens the noise from the motor on the accelerometer.
-        Motor_PW = (Motor_PW-20 < MOTOR_REVERSE_PW) ? MOTOR_REVERSE_PW : Motor_PW-20;
-        PCA0CP2 = 0xFFFF - Motor_PW;
-        Pause();
-    }
-}
-
-//----------------------------------------------------------------------------
-// Stop Drive
-//----------------------------------------------------------------------------
-// Stops driving, turn off buzzer; we are on "flat" ground.
-void StopDrive( void )
-{
-    char stop_count = 0;
-    //stop while accel readings indicate flat ground
-    //wheels add their own noise too
-    while ( yaccel > -250 && yaccel < 250
-            && xaccel > -300 && xaccel < 300 )
-    {
-        if (stop_count++ < 10)
-        {
-            Read_Accel();
-            Print_Data();
-        }
-        //Turn everything off/neutral and sit.
-        BUZZ = 1;
-        Servo_PW = SERVO_CENTER_PW;
-        Motor_PW = MOTOR_NEUTRAL_PW;
-        PCA0CP0 = 0xFFFF - Servo_PW;
-        PCA0CP2 = 0xFFFF - Motor_PW;
-        printf("\r\n\r\nYour maximum slope was: %d", max_slope);
-        while(1) {}
-    }
-    //if we break out, stop_count was interrupted before 10; unstable area.
 }
 
 //----------------------------------------------------------------------------
@@ -191,10 +141,6 @@ void StopDrive( void )
 // the keypad or the keyboard.
 void Start_Parameters(void)
 {
-    printf("\r\nCalibrating accelerometer...");
-    Calibrate_Accel();
-    printf("\r\nYour xoffset: %ld\r\nYour yoffset: %ld", xoffset, yoffset);
-
     Servo_PW = SERVO_CENTER_PW;		//Initialize car to straight steering and no movement
     Motor_PW = MOTOR_NEUTRAL_PW;	//Set pulse to stop car
     PCA0CP0 = 0xFFFF - Servo_PW;	//tell hardware to use new servo pulse width
@@ -226,7 +172,7 @@ void Start_Parameters(void)
 	{
 		lcd_clear(); //clear screen
 		lcd_print("Press 5 keys."); //print instructions
-		printf("\r\nSelect a side-to-side gain (0 to 50) by inputing 5 digits. Press # to confirm.\r\n");
+		printf("\r\nSelect a side-to-side gain (0 to 50) by inputing 5 digits. Lead with 0's. Press # to confirm.\r\n");
 		kdx = calibrate();	//take 5 digit input
 		Wait(); //wait a second
 	}
@@ -239,11 +185,11 @@ void Start_Parameters(void)
 	{
 		lcd_clear(); //clear screen
 		lcd_print("Press 5 keys."); //print instructions
-		printf("\r\nSelect a steering gain (0 to 100) by inputing 5 digits. Press # to confirm.\r\n");
+		printf("\r\nSelect a steering gain (0 to 50) by inputing 5 digits. Lead with 0's. Press # to confirm.\r\n");
 		ks = calibrate();	//take 5 digit input
 		Wait(); //wait a second
 	}
-	while (ks > 100); //wait until you get appropriate gain
+	while (ks > 50); //wait until you get appropriate gain
 	printf("\r\nYou selected %u as your steering gain", ks); //print steering gain
     lcd_print("\nFinal value above");  
     Wait();
@@ -252,14 +198,18 @@ void Start_Parameters(void)
 	{
 		lcd_clear(); //clear screen
 		lcd_print("Press 5 keys."); //print instructions
-		printf("\r\nSelect a integral gain (0 to 100) by inputing 5 digits. Press # to confirm.\r\n");
+		printf("\r\nSelect a integral gain (0 to 50) by inputing 5 digits. Lead with 0's. Press # to confirm.\r\n");
 		ki = calibrate();	//take 5 digit input
 		Wait(); //wait a second
 	}
-	while (ki > 100); //wait until you get appropriate gain
+	while (ki > 50); //wait until you get appropriate gain
 	printf("\r\nYou selected %u as your integral gain", ki); //print integral gain
     lcd_print("\nFinal value above");  
     Wait();
+    
+    printf("\r\nCalibrating accelerometer...");
+    Calibrate_Accel();
+    printf("\r\nYour xoffset: %ld\r\nYour yoffset: %ld", xoffset, yoffset);
 }
 
 //----------------------------------------------------------------------------
@@ -282,24 +232,31 @@ void Set_Neutral(void)
     if (SS1)
     {
 		Servo_PW = SERVO_CENTER_PW;
-        servo_stop = 1;
-    }
-    else
-    {
-        servo_stop = 0;
     }
     if (SS2)
     {
         Motor_PW = MOTOR_NEUTRAL_PW;
-        motor_stop = 1;
-    }
-    else
-    {
-        motor_stop = 0;
     }
     PCA0CP0 = 0xFFFF - Servo_PW;
     PCA0CP2 = 0xFFFF - Motor_PW;
+    servo_stop = (SS1) ? 1 : 0;
+    motor_stop = (SS2) ? 1 : 0;
 }
+
+//----------------------------------------------------------------------------
+//Read_Print
+//----------------------------------------------------------------------------
+//
+// Used to allow the car to continue making readings to print those readings
+// while it is in non-normal operating conditions (i.e. encountering obstacle).
+//
+void Read_Print(void)
+{
+    //Read_Compass();
+    //Read_Ranger();
+    Print_Data();
+}
+
 
 //----------------------------------------------------------------------------
 //Print_Data
@@ -307,12 +264,12 @@ void Set_Neutral(void)
 void Print_Data(void)
 {
     if(print_flag)
-		//Only prints every ~100 ms
+		//Only prints every ~400 ms
     {
         print_flag = 0;
         printf("\r\n%ld,%ld,%u,%u,%u,%u", xaccel, yaccel, kdx, kdy, ks, Motor_PW);
         lcd_clear();
-        lcd_print("x-angle: %ld\ny-angle: %ld\nGains (x,y,s): %u, %u, %u\nMotor PW: %u", xaccel, yaccel, kdx, kdy, ks, Motor_PW);
+        lcd_print("x-angle: %u\ny-angle: %u\nGains (x,y,s): %u, %u, %u\nMotor PW: %u", xaccel, yaccel, kdx, kdy, ks, Motor_PW);
     }
 }
 
@@ -330,8 +287,8 @@ void Set_Servo_PWM(void)
 
 	//Servo_PW set to value based on heading_error modified by gain set in Car_Parameters()
     //correction for xaccel should be  in opposite direction to the accel; want to balance, not increase, the tilt
-    // negative xaccel readings -> turn servo left; need to turn right.
-	Servo_PW = SERVO_CENTER_PW - ks*xpercent;
+    //did math, not sure????
+	Servo_PW = SERVO_CENTER_PW + ks*xaccel;
 
     //Additional precaution: if Servo_PW somehow exceeds the limits set in Lab 3-1,
     //then Servo_PW is set to corresponding endpoint of PW range [SERVO_LEFT_PW, SERVO_RIGHT_PW]
@@ -341,6 +298,8 @@ void Set_Servo_PWM(void)
                 (Servo_PW > SERVO_RIGHT_PW) ? SERVO_RIGHT_PW :
                 Servo_PW;
 
+	//if (Servo_PW > SERVO_RIGHT_PW) Servo_PW = SERVO_RIGHT_PW;
+	//if (Servo_PW < SERVO_LEFT_PW) Servo_PW = SERVO_LEFT_PW;
 	PCA0CP0 = 0xFFFF - Servo_PW;
 }
 
@@ -357,10 +316,10 @@ void Set_Motor_PWM(void)
 	//Add correction for front-to-back tilt, forcing a forward movement to climb the slope.
 	//Add correction for side-to-side tilt, forcing a forward movement to turn the car.
     //Integral term:
-	error_sum += ypercent - abs(xpercent);
+	error_sum += yaccel + abs(xaccel);
 
     // kdy is the y-axis drive feedback gain; kdx is the x-axis drive feedback gain; ki is the integral gain
-	Motor_PW = MOTOR_NEUTRAL_PW + kdy*ypercent - kdx*abs(xpercent) + ki*error_sum;
+	Motor_PW = MOTOR_NEUTRAL_PW + kdy*yaccel + kdx*abs(xaccel) + ki*error_sum;
 
 	//Motor_PW = MOTOR_NEUTRAL_PW+kdy*yaccel; // kdy is the y-axis drive feedback gain
 	//Motor_PW += kdx*abs(xaccel); //kdx is the x-axis drive feedback gain
@@ -371,11 +330,6 @@ void Set_Motor_PWM(void)
                 (Motor_PW > MOTOR_FORWARD_PW) ? MOTOR_FORWARD_PW :
                 Motor_PW;
 
-    if (yaccel - yaccel_mem > 1000)
-    {
-        Motor_PW = MOTOR_NEUTRAL_PW;
-        error_sum = 0;
-    }
 	PCA0CP2 = 0xFFFF - Motor_PW;
 }
 
@@ -427,11 +381,12 @@ unsigned int calibrate(void)
 	unsigned char isPress = 0;
 	unsigned char pressCheck = 0;
 	unsigned int value = 0;	//Final value to be returned
-	
+    
     for (;pressCheck < 5;pressCheck++)
         Data[pressCheck] = 0;
     pressCheck = 0;
-	while(1)
+	
+    while(1)
 	{
 		keyboard = getchar_nw();	//This constantly sets keyboard to whatever char is in the terminal
 		keypad = read_keypad();		//This constantly sets the keypad to whatever char is on the LCD
@@ -439,15 +394,17 @@ unsigned int calibrate(void)
 
 		if (keyboard == '#' || keypad == '#') //# is a confirm key, so it will finish calibrate()
         {
+            printf("\r\nThis is isPress: %u\r\n", isPress);
             for (pressCheck = 0; 0 < isPress; isPress--)
             {
                 value += Data[pressCheck++]*pow(10,isPress - 1);
+                printf("\r\nThis is value: %u\r\n", value);
             }
             if (value > 255)    //If the gain is set too high, set to saturation for the unsigned char gains
                 return 255;
-			return value;	
+            return value;	
         }
-
+        
 		if (isPress > pressCheck && keypad == 0xFF && keyboard == 0xFF)	//Only increments pressCheck if held key is released
 			pressCheck++;
 		
@@ -612,7 +569,7 @@ void PCA_ISR ( void ) __interrupt 9
             accel_flag = 1;
             accel_count = 0;
         }
-        if (print_count >= 5)  //Prints will only occur every 100 ms
+        if (print_count >= 20)  //Prints will only occur every 400 ms
         {
             print_flag = 1;
             print_count = 0;
@@ -636,18 +593,16 @@ void SMB_Init()
 }
 
 //-----------------------------------------------------------------------------
+//
 // Read Accelerometer
-//-----------------------------------------------------------------------------
 //
 void Read_Accel()
 {
 	char i=0; //counter variable
 	xaccel = 0; //reset x reading
-    yaccel_mem = yaccel;    //Save the last yaccel reading before clearing
 	yaccel = 0; //reset y reading
 
-	//for(i=0;i<8;i++) //loop through 8 iterations
-	for(i=0;i<ACCEL_READ;i++) //loop through 4 iterations
+	for(i=0;i<8;i++) //loop through 8 iterations
 	{
 		while(!accel_flag);
 		accel_flag=0;
@@ -661,18 +616,9 @@ void Read_Accel()
 			yaccel +=Data[3]<<8 | Data[2]>>4; //set and total y values
 		}
 	}
-	//xaccel = (xaccel>>3)-xoffset; //average by dividing by 8 and subtract offset
-
-	xaccel = (xaccel>>3)-xoffset; //average by dividing by 4 and subtract offset
-    xpercent = (float) xaccel/PERCENT_DENOM; //gravity is 9800 mm/s^2, so about 10k for error would be max.
-
-	//yaccel = (yaccel>>3)-yoffset; //average by dividing by 8 and subtract offset
-	yaccel = (yaccel>>3)-yoffset; //average by dividing by 4 and subtract offset
-    ypercent = (float) yaccel/PERCENT_DENOM; //gravity is 9800 mm/s^2, so about 10k for error would be max.
-    
-    max_slope = (abs(yaccel) > max_slope) ? abs(yaccel) : max_slope;
+	xaccel = (xaccel>>3)-xoffset; //average by dividing by 8 and subtract offset
+	yaccel = (yaccel>>3)-yoffset; //average by dividing by 8 and subtract offset
 }
-
 //-----------------------------------------------------------------------------
 //Calibrate Accelerometer
 //-----------------------------------------------------------------------------
@@ -700,7 +646,6 @@ void Calibrate_Accel()
 	xoffset = xoffset>>6; //average by dividing by 64
 	yoffset = yoffset>>6; //average by dividing by 64
 }
-
 //-----------------------------------------------------------------------------
 // Buzzer_Sound
 //-----------------------------------------------------------------------------
@@ -727,7 +672,6 @@ void Buzzer_Sound(void)
         BUZZ = 1;           //Turn off for 1 second
     }
 }
-
 //-----------------------------------------------------------------------------
 // Calculate_Gain
 //-----------------------------------------------------------------------------
