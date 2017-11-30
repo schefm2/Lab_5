@@ -53,7 +53,7 @@ global variables
 	unsigned int PCA_overflows, Servo_PW, Motor_PW;
 	unsigned char kdx, kdy, ks, ki; //Feedback gains for x-axis of car, y-axis of car, and steering
 	unsigned char keyboard, keypad, accel_count, print_count, wait_count;
-	float gain; //Time is in tenths of a second
+	float xpercent ypercent; //Time is in tenths of a second
 
 __bit servo_stop, motor_stop, accel_flag, print_flag, post_start=0; //flags
 
@@ -80,23 +80,42 @@ main function
     Start_Parameters();
 
     Begin infinite loop
-	while accelerometer gives roughly flat ground readings and while post_start flag hasn't been set
-	    call print data
-	    read accelerometer
-	    set motor in reverse
+	while post_start flag hasn't been set
+	    call BeginDrive
 	set post_start flag
 
 	call print data
 	read accelerometer
 	call set neutral to determine switch positioning
 	call set motion to set servo and motor pw based on accelerometer readings
+	call Buzzer_sound
 
-	while accelerometer gives roughly flat ground readings and while the post_start flag is st
-	    set servo to center
-	    stop motor
+	while the post_start flag is high
+	    call StopDrive
 
     End infinite loop
 End main function
+
+BeginDrive
+    while accelerometer gives roughly flat ground readings
+	call print data
+	read accelerometer
+	set motor in reverse
+End BeginDrive
+
+StopDrive 
+	set stop_count to zero
+	while roughly flat ground conditions are met
+(makes sure the accelerometer has a chance to read a few times to make sure its actually on flat ground)
+	    if stop_count++ is less than 10 
+		read the accelerometer
+		call print data
+	    turn buzzer off
+	    set motor to neutral
+	    set servo to center alignment
+	    print max slope
+	    start infinite loop
+End StopDrive
 
 
 Functions
@@ -157,8 +176,14 @@ Functions
 	Set_Neutral
 		If SS1 is ON
 			Set Servo_PW to SERVO_CENTER_PW
+			set servo_stop high
+		else 
+			servo_stop=0
 		If SS2 is ON
 			Set Motor_PW to MOTOR_NEUTRAL_PW
+			set motor_stop high
+		else
+			motor_stop = 0
 		Set CCM0 with Servo_PW;
 		Set CCM2 with Motor_PW;
 		if SS1 is ON set servo_stop flag high else set low
@@ -211,6 +236,52 @@ Functions
 		Print offsets
 
 	End Start_Parameters
+	
+	Read_Accel
+		initialize counter char i = 0;
+		set xaccel to zero
+		save last yaccel reading
+		set yaccel to zero
+		for 8 iterations using i as counter
+		    while accel flag not high wait
+		    set accel flag to zero
+		    read 4 bytes starting from reister 28
+		    xaccel +=Data[1]<<8 | Data[0]>>4 to set and total x values
+		    yaccel +=Data[3]<<8 | Data[2]>>4 to set and total y values
+		divide xaccel by 8 and subtract offset
+		divide yaccel by 8 and subtract offset
+		xpercent equals xaccel divided by 10000
+		ypercent equals yaccel divided by 10000
+
+	End Read_Accel
+
+	Calibrate_Accel
+		initialize counter char i = 0;
+		set xoffset to zero
+		set yoffset to zero
+		for 8 iterations using i as counter
+		    while accel flag not high wait
+		    set accel flag to zero
+		    read 4 bytes starting from reister 28
+		    xoffset +=Data[1]<<8 | Data[0]>>4 to set and total x values
+		    yoffset +=Data[3]<<8 | Data[2]>>4 to set and total y values
+		divide xoffset by 64
+		divide yoffset by 64
+	End Calibrate_Accel
+
+	Buzzer_Sound
+		if motor_stop flag  is raised
+		    turn buzzer off
+		if wait_count is higher than 75 (1.5 seconds)
+		    set wait_count to zero
+		    turn buzzer on
+		if wait_count is less than 25 (.5 seconds after buzzer is on)
+		    turn buzzer off
+	End Buzzer_Sound
+
+	Calculate_Gain
+		return AD conversion from pot divided by 255 times 50
+	End Calculate_Gain
 	
 	Print_Data
 		if print flag has been set high
