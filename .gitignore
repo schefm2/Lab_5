@@ -50,3 +50,21 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# SiLabs bs
+*.#1
+*.#2
+*.#3
+*.cdb
+*.mem
+*.omf
+*.adb
+*.asm
+*.lk
+*.swp
+*.swo
+*.rst
+*.rel
+*.lst
+*.sym
+*.wsp
