@@ -143,7 +143,7 @@ void BeginDrive( void )
 {
     //Assume noisy from motor: 5% tolerance (max accel is 10k, 600/10k = 6% ~ 5%).
     while ( yaccel > -1000 && yaccel < 1000
-            && xaccel > -500 && xaccel < 500 )
+            && xaccel > -700 && xaccel < 700 )
     {
         Read_Accel();
         Print_Data();
@@ -310,9 +310,9 @@ void Print_Data(void)
 		//Only prints every ~100 ms
     {
         print_flag = 0;
-        printf("\r\n%ld,%ld,%u,%u,%u,%u", xaccel, yaccel, kdx, kdy, ks, Motor_PW);
+        printf("\r\n%ld,%ld,%u,%u,%u", xaccel, yaccel, kdy, Servo_PW, Motor_PW);
         lcd_clear();
-        lcd_print("x-angle: %ld\ny-angle: %ld\nGains (x,y,s): %u, %u, %u\nMotor PW: %u", xaccel, yaccel, kdx, kdy, ks, Motor_PW);
+        lcd_print("yaccel: %ld\kdy: %u\nServo: %u\nMotor: %u", yaccel, kdy, Servo_PW, Motor_PW);
     }
 }
 
