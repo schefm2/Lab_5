@@ -53,7 +53,7 @@ global variables
 	unsigned int PCA_overflows, Servo_PW, Motor_PW;
 	unsigned char kdx, kdy, ks, ki; //Feedback gains for x-axis of car, y-axis of car, and steering
 	unsigned char keyboard, keypad, accel_count, print_count, wait_count;
-	float gain; //Time is in tenths of a second
+	float xpercent ypercent; //Time is in tenths of a second
 
 __bit servo_stop, motor_stop, accel_flag, print_flag, post_start=0; //flags
 
@@ -211,6 +211,35 @@ Functions
 		Print offsets
 
 	End Start_Parameters
+	
+	Read_Accel
+		initialize counter char i = 0;
+		set xoffset to zero
+		set yoffset to zero
+		for 8 iterations using i as counter
+		    while accel flag not high wait
+		    set accel flag to zero
+		    read 4 bytes starting from reister 28
+		    xaccel +=Data[1]<<8 | Data[0]>>4 to set and total x values
+		    yaccel +=Data[3]<<8 | Data[2]>>4 to set and total y values
+		divide xaccel by 8 and subtract offset
+		divide yaccel by 8 and subtract offset
+		xpercent equals xaccel divided by 10000
+		ypercent equals yaccel divided by 10000
+
+	End Read_Accel
+
+	Calibrate_Accel
+
+	End Calibrate_Accel
+
+	Buzzer_Sound
+
+	End Buzzer_Sound
+
+	Calculate_Gain
+
+	End Calculate_Gain
 	
 	Print_Data
 		if print flag has been set high
