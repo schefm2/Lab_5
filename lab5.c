@@ -27,7 +27,7 @@
 #define MOTOR_FORWARD_PW 3502
 
 #define PERCENT_DENOM 500
-#define ACCEL_READ 4
+#define ACCEL_READ 8
 
 //-----------------------------------------------------------------------------
 // Function Prototypes
@@ -68,9 +68,11 @@ unsigned char Calculate_Gain(void);
 //-----------------------------------------------------------------------------
 
 unsigned char Data[5];  //Data array used to read and write to I2C Bus slaves
-signed long xaccel, yaccel, xoffset=0, yoffset=0, error_sum=0;
-unsigned int Servo_PW, Motor_PW, max_accel = 0;
-unsigned char kdx, kdy, ks, ki; //Feedback gains for x-axis of car, y-axis of car, and steering
+signed long xaccel, yaccel, xoffset=0, yoffset=0;
+signed int error_sum = 0, yaccel_mem, max_slope = 0;
+unsigned int Servo_PW, Motor_PW;
+unsigned char kdy; //Feedback gains for x-axis of car, y-axis of car, and steering
+__xdata unsigned char kdx, ks, ki;
 unsigned char keyboard, keypad, accel_count, print_count, wait_count;
 float xpercent, ypercent; //Time is in tenths of a second
 
@@ -161,8 +163,8 @@ void StopDrive( void )
     char stop_count = 0;
     //stop while accel readings indicate flat ground
     //wheels add their own noise too
-    while ( yaccel > -500 && yaccel < 500
-            && xaccel > -500 && xaccel < 500 )
+    while ( yaccel > -250 && yaccel < 250
+            && xaccel > -300 && xaccel < 300 )
     {
         if (stop_count++ < 10)
         {
@@ -175,7 +177,8 @@ void StopDrive( void )
         Motor_PW = MOTOR_NEUTRAL_PW;
         PCA0CP0 = 0xFFFF - Servo_PW;
         PCA0CP2 = 0xFFFF - Motor_PW;
-        Pause();
+        printf("\r\n\r\nYour maximum slope was: %d", max_slope);
+        while(1) {}
     }
     //if we break out, stop_count was interrupted before 10; unstable area.
 }
@@ -236,11 +239,11 @@ void Start_Parameters(void)
 	{
 		lcd_clear(); //clear screen
 		lcd_print("Press 5 keys."); //print instructions
-		printf("\r\nSelect a steering gain (0 to 50) by inputing 5 digits. Press # to confirm.\r\n");
+		printf("\r\nSelect a steering gain (0 to 100) by inputing 5 digits. Press # to confirm.\r\n");
 		ks = calibrate();	//take 5 digit input
 		Wait(); //wait a second
 	}
-	while (ks > 50); //wait until you get appropriate gain
+	while (ks > 100); //wait until you get appropriate gain
 	printf("\r\nYou selected %u as your steering gain", ks); //print steering gain
     lcd_print("\nFinal value above");  
     Wait();
@@ -249,11 +252,11 @@ void Start_Parameters(void)
 	{
 		lcd_clear(); //clear screen
 		lcd_print("Press 5 keys."); //print instructions
-		printf("\r\nSelect a integral gain (0 to 50) by inputing 5 digits. Press # to confirm.\r\n");
+		printf("\r\nSelect a integral gain (0 to 100) by inputing 5 digits. Press # to confirm.\r\n");
 		ki = calibrate();	//take 5 digit input
 		Wait(); //wait a second
 	}
-	while (ki > 50); //wait until you get appropriate gain
+	while (ki > 100); //wait until you get appropriate gain
 	printf("\r\nYou selected %u as your integral gain", ki); //print integral gain
     lcd_print("\nFinal value above");  
     Wait();
@@ -304,7 +307,7 @@ void Set_Neutral(void)
 void Print_Data(void)
 {
     if(print_flag)
-		//Only prints every ~400 ms
+		//Only prints every ~100 ms
     {
         print_flag = 0;
         printf("\r\n%ld,%ld,%u,%u,%u,%u", xaccel, yaccel, kdx, kdy, ks, Motor_PW);
@@ -354,10 +357,10 @@ void Set_Motor_PWM(void)
 	//Add correction for front-to-back tilt, forcing a forward movement to climb the slope.
 	//Add correction for side-to-side tilt, forcing a forward movement to turn the car.
     //Integral term:
-	error_sum += ypercent + abs(xpercent);
+	error_sum += ypercent - abs(xpercent);
 
     // kdy is the y-axis drive feedback gain; kdx is the x-axis drive feedback gain; ki is the integral gain
-	Motor_PW = MOTOR_NEUTRAL_PW + kdy*ypercent + kdx*abs(xpercent) + ki*error_sum;
+	Motor_PW = MOTOR_NEUTRAL_PW + kdy*ypercent - kdx*abs(xpercent) + ki*error_sum;
 
 	//Motor_PW = MOTOR_NEUTRAL_PW+kdy*yaccel; // kdy is the y-axis drive feedback gain
 	//Motor_PW += kdx*abs(xaccel); //kdx is the x-axis drive feedback gain
@@ -368,6 +371,11 @@ void Set_Motor_PWM(void)
                 (Motor_PW > MOTOR_FORWARD_PW) ? MOTOR_FORWARD_PW :
                 Motor_PW;
 
+    if (yaccel - yaccel_mem > 1000)
+    {
+        Motor_PW = MOTOR_NEUTRAL_PW;
+        error_sum = 0;
+    }
 	PCA0CP2 = 0xFFFF - Motor_PW;
 }
 
@@ -604,7 +612,7 @@ void PCA_ISR ( void ) __interrupt 9
             accel_flag = 1;
             accel_count = 0;
         }
-        if (print_count >= 20)  //Prints will only occur every 400 ms
+        if (print_count >= 5)  //Prints will only occur every 100 ms
         {
             print_flag = 1;
             print_count = 0;
@@ -635,6 +643,7 @@ void Read_Accel()
 {
 	char i=0; //counter variable
 	xaccel = 0; //reset x reading
+    yaccel_mem = yaccel;    //Save the last yaccel reading before clearing
 	yaccel = 0; //reset y reading
 
 	//for(i=0;i<8;i++) //loop through 8 iterations
@@ -654,12 +663,14 @@ void Read_Accel()
 	}
 	//xaccel = (xaccel>>3)-xoffset; //average by dividing by 8 and subtract offset
 
-	xaccel = (xaccel>>2)-xoffset; //average by dividing by 4 and subtract offset
+	xaccel = (xaccel>>3)-xoffset; //average by dividing by 4 and subtract offset
     xpercent = (float) xaccel/PERCENT_DENOM; //gravity is 9800 mm/s^2, so about 10k for error would be max.
 
 	//yaccel = (yaccel>>3)-yoffset; //average by dividing by 8 and subtract offset
-	yaccel = (yaccel>>2)-yoffset; //average by dividing by 4 and subtract offset
+	yaccel = (yaccel>>3)-yoffset; //average by dividing by 4 and subtract offset
     ypercent = (float) yaccel/PERCENT_DENOM; //gravity is 9800 mm/s^2, so about 10k for error would be max.
+    
+    max_slope = (abs(yaccel) > max_slope) ? abs(yaccel) : max_slope;
 }
 
 //-----------------------------------------------------------------------------
